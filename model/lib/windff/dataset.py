@@ -3,6 +3,7 @@ from dgl import DGLDataset, DGLGraph
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
+from abc import ABC, abstractmethod
 
 time_dict = {}  # {"00:00": 0, "00:10": 1, ..., "23:50": ...}
 for i in range(0, 24):
@@ -10,11 +11,11 @@ for i in range(0, 24):
     time_dict[f'{i:02d}:{j:02d}'] = len(time_dict)
 
 
-class WindFFDataset(DGLDataset):
+class WindFFDataset(DGLDataset, ABC):
 
   @dataclass
-  class CreateArgs:
-    """Arguments for WindFFDataset
+  class Config:
+    """Configuration for WindFFDataset
 
     Attributes:
       turbine_id_col: The values should have been preprocessed to index from 0
@@ -36,49 +37,51 @@ class WindFFDataset(DGLDataset):
     turbine_location_df: pd.DataFrame
     turbine_timeseries_df: pd.DataFrame
     turbine_timeseries_target_cols: list[str]
-    turbine_prediction_df: pd.DataFrame
-    global_timeseries_df: pd.DataFrame
-    global_prediction_df: pd.DataFrame
+    turbine_prediction_df: pd.DataFrame = None
+    global_timeseries_df: pd.DataFrame = None
+    global_prediction_df: pd.DataFrame = None
     adj_weight_threshold: float
+    input_win_sz: int
+    output_win_sz: int
 
   @classmethod
-  def __check_create_args(cls, args: CreateArgs):
-    turbcol = args.turbine_id_col
-    timecol = args.time_col
+  def __check_config(cls, config: Config):
+    turbcol = config.turbine_id_col
+    timecol = config.time_col
 
     # turbine_location_df
-    if turbcol not in args.turbine_location_df.columns:
+    if turbcol not in config.turbine_location_df.columns:
       raise ValueError()
-    if len(args.turbine_location_df.columns != 3):
+    if len(config.turbine_location_df.columns != 3):
       raise ValueError()
 
     # turbine_timeseries_df
-    if not {turbcol, timecol, *args.turbine_timeseries_target_cols} < set(args.turbine_timeseries_df.columns):
+    if not {turbcol, timecol, *config.turbine_timeseries_target_cols} < set(config.turbine_timeseries_df.columns):
       raise ValueError()
 
     # turbine_prediction_df
-    if args.turbine_prediction_df is not None:
-      if not {turbcol, timecol} < set(args.turbine_prediction_df.columns):
+    if config.turbine_prediction_df is not None:
+      if not {turbcol, timecol} < set(config.turbine_prediction_df.columns):
         raise ValueError()
 
     # global_timeseries_df
-    if args.global_timeseries_df is not None:
-      if not {timecol} < set(args.global_timeseries_df.columns):
+    if config.global_timeseries_df is not None:
+      if not {timecol} < set(config.global_timeseries_df.columns):
         raise ValueError()
       # global_prediction_df
-      if args.global_prediction_df is not None:
-        if not {timecol} < set(args.global_prediction_df.columns):
+      if config.global_prediction_df is not None:
+        if not {timecol} < set(config.global_prediction_df.columns):
           raise ValueError()
-        if not set(args.global_prediction_df.columns) < set(args.global_timeseries_df.columns):
+        if not set(config.global_prediction_df.columns) < set(config.global_timeseries_df.columns):
           raise ValueError()
 
-    if args.adj_weight_threshold <= 0 or args.adj_weight_threshold >= 1:
+    if config.adj_weight_threshold <= 0 or config.adj_weight_threshold >= 1:
       raise ValueError()
 
   @classmethod
-  def __create_raw_graph(cls, args: CreateArgs) -> DGLGraph:
-    df = args.turbine_location_df
-    idcol = args.turbine_id_col
+  def __create_raw_graph(cls, config: Config) -> DGLGraph:
+    df = config.turbine_location_df
+    idcol = config.turbine_id_col
     nodes = df[idcol].unique()
     if len(nodes) != len(df):
       raise ValueError("turbine_location_df")
@@ -104,22 +107,27 @@ class WindFFDataset(DGLDataset):
     return g
 
   @classmethod
-  def create(cls, args: CreateArgs) -> 'WindFFDataset':
-    """Create a WindFFDataset from dataframes
-    The user can free the dataframes after calling this function
-    """
-    cls.__check_create_args(args)
-
-    graph = cls.__create_raw_graph(args)
-    dists = graph.edata['dist']
+  def __create_graph(cls, config: Config) -> DGLGraph:
+    g = cls.__create_raw_graph(config)
+    dists = g.edata['dist']
     weights = np.exp(-np.square(dists / np.std(dists)))
-    weights = np.where(weights > args.adj_weight_threshold, weights, 0)
-    graph.edata['w'] = weights
-    del graph.edata['dist']
+    g.edata['w'] = np.where(
+        weights > config.adj_weight_threshold, weights, 0)
+    g.remove_edges(g.edata['w'] == 0)
+    del g.edata['dist']
+    return g
 
-  def __init__(self):
-    super(WindFFDataset, self).__init__(name='windff')
+  def __init__(self, name: str = None):
+    super(WindFFDataset, self).__init__(name=name)
 
+  def _do_process(self, config: Config):
+    """_do_process
+    The subclass can free the dataframes in args after calling this function
+    """
+    self.__check_config(config)
+    g = self.__create_graph(config)
+
+  @abstractmethod
   def process(self):
     pass
 

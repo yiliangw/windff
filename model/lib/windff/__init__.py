@@ -1,1 +1,2 @@
-from .mtgnn import WindFFModel
+from .model import WindFFModel
+from .dataset import WindFFDataset
