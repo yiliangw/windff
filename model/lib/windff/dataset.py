@@ -3,90 +3,126 @@ from dgl import DGLDataset, DGLGraph
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np
+import torch
 from abc import ABC, abstractmethod
-
-time_dict = {}  # {"00:00": 0, "00:10": 1, ..., "23:50": ...}
-for i in range(0, 24):
-  for j in range(0, 60, 10):
-    time_dict[f'{i:02d}:{j:02d}'] = len(time_dict)
 
 
 class WindFFDataset(DGLDataset, ABC):
 
   @dataclass
-  class Config:
-    """Configuration for WindFFDataset
+  class Data:
+    """Preprocessed data for WindFFDataset
 
     Attributes:
-      turbine_id_col: The values should have been preprocessed to index from 0
+      turb_id_col: The values should have been preprocessed to index from 0
       time_col: The values should have been preprocessed to index from 0
 
-      turbine_timeseries_df: Should include time_col, turbine_id_col
-      turbine_timeseries_target_cols: Target features to predict in turbine_timeseries_df 
+      turb_timeseries_df: Should include time_col, turb_id_col and turb_timeseries_target_cols. If targets 
+        are also used as features, they should be copied as other columns and preprocessed.
+      turb_timeseries_target_cols: The target columns in the timeseries dataframe.
 
-      turbine_prediction_df (optional): Predicted values for some of turbine_timeseries_df.columns
+    """
+    turb_id_col: str
+    time_col: str
 
-      global_timeseries_df (optional): Global timeseries information 
-      global_prediction_df (optional): The columns should be a subset of global_timeseries_df's
+    turb_location_df: pd.DataFrame
+    turb_timeseries_df: pd.DataFrame
+    turb_timeseries_target_cols: list[str]
 
+  @dataclass
+  class Config:
+    """
+
+    Attributes:
       adj_weight_threshold (float): The threshold value in (0, 1) to accept edges in 
         the graph after normalization. A higher value means fewer edges (e^(-1) corresponds to the standard deviation of the distances).
+
     """
-    turbine_id_col: str
-    time_col: str
-    turbine_location_df: pd.DataFrame
-    turbine_timeseries_df: pd.DataFrame
-    turbine_timeseries_target_cols: list[str]
-    turbine_prediction_df: pd.DataFrame = None
-    global_timeseries_df: pd.DataFrame = None
-    global_prediction_df: pd.DataFrame = None
+    data: 'WindFFDataset.Data'
     adj_weight_threshold: float
     input_win_sz: int
     output_win_sz: int
 
+  def __init__(self, name: str = None):
+    super(WindFFDataset, self).__init__(name=name)
+    self.g: DGLGraph = None
+
+  def process(self):
+    config = self.get_config()
+    self.__check_config(config)
+    g = self.__create_graph(config)
+
+    data = config.data
+
+    grouped_ts_df = data.turb_timeseries_df.groupby(data.turb_id_col)
+
+    node_ts_dfs = [grouped_ts_df.get_group(node).sort_values(
+        by=data.time_col, ascending=True) for node in g.nodes()]
+
+    feat_cols = list(set(data.turb_timeseries_df.columns) -
+                     {data.turb_id_col, data.time_col, *data.turb_timeseries_target_cols})
+
+    feat_series_tensor = torch.tensor(
+        [n_df[feat_cols].values for n_df in node_ts_dfs])
+    target_series_tensor = torch.tensor([
+        n_df[data.turb_timeseries_target_cols].values for n_df in node_ts_dfs])
+
+    # (node_nb, time, feature_dim)
+    g.ndata['feat_series'] = feat_series_tensor
+    # (node_nb, time, target_dim)
+    g.ndata['target_series'] = target_series_tensor
+
+    datapoint_nb = feat_series_tensor.shape[1] - \
+        config.input_win_sz - config.output_win_sz + 1
+
+    # (node_nb, datapoint_nb, input_win_sz, feature_dim)
+    g.ndata['feat'] = torch.stack([feat_series_tensor[:, i:i + config.input_win_sz]
+                                   for i in range(datapoint_nb)], dim=1)
+    # (node_nb, datapoint_nb, output_win_sz, target_dim)
+    g.ndata['target'] = torch.stack([target_series_tensor[:, i + config.input_win_sz:i +
+                                    config.input_win_sz + config.output_win_sz] for i in range(datapoint_nb)], dim=1)
+    self.graph = g
+
+  def __getitem__(self, idx):
+    return self.graph
+
+  def __len__(self):
+    return 1
+
+  @abstractmethod
+  def get_config(self) -> Config:
+    pass
+
   @classmethod
   def __check_config(cls, config: Config):
-    turbcol = config.turbine_id_col
-    timecol = config.time_col
+
+    data = config.data
+
+    turbcol = data.turb_id_col
+    timecol = data.time_col
 
     # turbine_location_df
-    if turbcol not in config.turbine_location_df.columns:
+    if turbcol not in data.turb_location_df.columns:
       raise ValueError()
-    if len(config.turbine_location_df.columns != 3):
+    if len(data.turb_location_df.columns != 3):
       raise ValueError()
 
     # turbine_timeseries_df
-    if not {turbcol, timecol, *config.turbine_timeseries_target_cols} < set(config.turbine_timeseries_df.columns):
+    if not {turbcol, timecol, *data.turb_timeseries_target_cols} < set(config.turbine_timeseries_df.columns):
       raise ValueError()
-
-    # turbine_prediction_df
-    if config.turbine_prediction_df is not None:
-      if not {turbcol, timecol} < set(config.turbine_prediction_df.columns):
-        raise ValueError()
-
-    # global_timeseries_df
-    if config.global_timeseries_df is not None:
-      if not {timecol} < set(config.global_timeseries_df.columns):
-        raise ValueError()
-      # global_prediction_df
-      if config.global_prediction_df is not None:
-        if not {timecol} < set(config.global_prediction_df.columns):
-          raise ValueError()
-        if not set(config.global_prediction_df.columns) < set(config.global_timeseries_df.columns):
-          raise ValueError()
 
     if config.adj_weight_threshold <= 0 or config.adj_weight_threshold >= 1:
       raise ValueError()
 
   @classmethod
   def __create_raw_graph(cls, config: Config) -> DGLGraph:
-    df = config.turbine_location_df
-    idcol = config.turbine_id_col
+    df = config.data.turb_location_df
+    idcol = config.data.turb_id_col
     nodes = df[idcol].unique()
     if len(nodes) != len(df):
       raise ValueError("turbine_location_df")
 
-    coordcols = list(df.columns - {idcol})
+    coordcols = list(set(df.columns) - {idcol})
     if len(coordcols) != 2:
       raise ValueError("turbine_location_df")
 
@@ -116,23 +152,3 @@ class WindFFDataset(DGLDataset, ABC):
     g.remove_edges(g.edata['w'] == 0)
     del g.edata['dist']
     return g
-
-  def __init__(self, name: str = None):
-    super(WindFFDataset, self).__init__(name=name)
-
-  def _do_process(self, config: Config):
-    """_do_process
-    The subclass can free the dataframes in args after calling this function
-    """
-    self.__check_config(config)
-    g = self.__create_graph(config)
-
-  @abstractmethod
-  def process(self):
-    pass
-
-  def __getitem__(self, idx):
-    return self.graph
-
-  def __len__(self):
-    return 1

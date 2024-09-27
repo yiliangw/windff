@@ -26,11 +26,6 @@ class SDWPFDataset(WindFFDataset):
     adj_weight_threshold: float
     discard_features: list[str] = None
 
-  @dataclass
-  class Data:
-    location_df: pd.DataFrame
-    timeseries_df: pd.DataFrame
-
   @classmethod
   def initialize(cls):
     for i in range(0, 24):
@@ -43,63 +38,54 @@ class SDWPFDataset(WindFFDataset):
     if self.config.discard_features is None:
       self.config.discard_features = []
 
-  def process(self):
-
+  def get_config(self):
     if not os.path.exists(self.ASSETS_DIR):
       import tarfile
       with tarfile.open(self.COMPRESSED_ASSETS, "r:bz2") as tar:
         tar.extractall(os.path.dirname(__file__))
 
-    data = self.Data(
-        location_df=pd.read_csv(self.LOCATION_CSV),
-        timeseries_df=pd.read_csv(self.TIMESERIES_CSV)
+    data = self.__preprocess(
+        raw_loc_df=pd.read_csv(self.LOCATION_CSV),
+        raw_ts_df=pd.read_csv(self.TIMESERIES_CSV)
     )
 
-    data = self.__preprocess(data)
-
-    args = WindFFDataset.Arguments(
-        turbine_id_col='TurbID',
-        time_col='Time',
-
-        turbine_location_df=data.turbine_location_df,
-        turbine_timeseries_df=data.timeseries_df,
-        turbine_timeseries_target_cols=self.TARGETS,
-
+    return WindFFDataset.Config(
+        data=data,
         adj_weight_threshold=self.config.adj_weight_threshold,
         input_win_sz=self.config.input_win_sz,
         output_win_sz=self.config.output_win_sz
     )
 
-    self._do_process(args)
+  def __preprocess(self, raw_loc_df: pd.DataFrame, raw_ts_df: pd.DataFrame) -> WindFFDataset.Data:
 
-  def __preprocess(self, dfs: Data) -> Data:
     # Location
     loc_df = pd.DataFrame()
-    loc_df['TurbID'] = dfs.location_df['TurbID'].astype(pd.UInt32Dtype) - 1
-    loc_df['x'] = dfs.location_df['x'].astype(pd.Float32Dtype)
-    loc_df['y'] = dfs.location_df['y'].astype(pd.Float32Dtype)
+    loc_df['TurbID'] = raw_loc_df['TurbID'].astype(
+        pd.UInt32Dtype) - 1
+    loc_df['x'] = raw_loc_df['x'].astype(pd.Float32Dtype)
+    loc_df['y'] = raw_loc_df['y'].astype(pd.Float32Dtype)
 
     # Timeseries
     ts_df = pd.DataFrame()
 
     # Turbine ID
-    ts_df['TurbID'] = dfs.timeseries_df['TurbID'].astype(pd.UInt32Dtype) - 1
+    ts_df['TurbID'] = raw_ts_df['TurbID'].astype(pd.UInt32Dtype) - 1
 
     # Time
-    days = dfs.timeseries_df['Day'].astype(pd.UInt32Dtype)
-    tmstamp = dfs.timeseries_df['Tmstamp'].astype(pd.StringDtype)
+    days = raw_ts_df['Day'].astype(pd.UInt32Dtype)
+    tmstamp = raw_ts_df['Tmstamp'].astype(pd.StringDtype)
     ts_df['Time'] = tmstamp.map(self.time_dict) + \
         (days - days.min()) * len(self.time_dict)
 
     # Targets and features
     for t in self.TARGETS:
-      ts_df[t] = dfs.timeseries_df[t].apply(pd.to_numeric, errors='coerce')
+      ts_df[t] = raw_ts_df[t].apply(pd.to_numeric, errors='coerce')
       # Also copy the targets features and do preprocessing later
       ts_df[f'{t}_feat'] = ts_df[t]
 
-    for f in dfs.timeseries_df.columns:
+    for f in raw_ts_df.columns:
       if f not in {'TurbID', 'Day', 'Tmstamp', *self.config.discard_features, *self.TARGETS}:
-        ts_df[f] = dfs.timeseries_df[f].apply(pd.to_numeric, errors='coerce')
+        ts_df[f] = raw_ts_df[f].apply(pd.to_numeric, errors='coerce')
 
     # Interpolate missing values
     ts_df.interpolate(method='linear', inplace=True)
@@ -109,7 +95,14 @@ class SDWPFDataset(WindFFDataset):
     #   if f not in {'TurbID', 'Time', *self.TARGETS}:
     #     ts_df[f] = (ts_df[f] - ts_df[f].mean()) / ts_df[f].std()
 
-    return self.Data(location_df=loc_df, timeseries_df=ts_df)
+    return WindFFDataset.Data(
+        turb_id_col='TurbID',
+        time_col='Time',
+
+        turb_location_df=loc_df,
+        turb_timeseries_df=ts_df,
+        turb_timeseries_target_cols=self.TARGETS.copy()
+    )
 
 
 SDWPFDataset.initialize()
