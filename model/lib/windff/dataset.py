@@ -1,5 +1,6 @@
 import dgl
-from dgl import DGLDataset, DGLGraph
+from dgl import DGLGraph
+from dgl.data import DGLDataset
 from dataclasses import dataclass
 import pandas as pd
 import numpy as np

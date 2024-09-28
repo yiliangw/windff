@@ -14,44 +14,89 @@ class WindFFModel(nn.Module):
   @dataclass
   class Config:
     feat_dim: int
+    target_dim: int
+    hidden_dim: int
     input_win_sz: int
     output_win_sz: int
     hidden_win_sz: int
-    out_hidden_dim: int
 
-  class Linear(nn.Module):
-    def __init__(self, in_features, out_features):
-      super(WindFFModel.Linear, self).__init__()
-      self.linear = nn.Linear(in_features, out_features)
+  class TimeLinear(nn.Module):
+    def __init__(self, in_win_sz, out_win_sz):
+      super(WindFFModel.TimeLinear, self).__init__()
+      self.linear = nn.Linear(in_win_sz, out_win_sz)
 
     def forward(self, g: DGLGraph, x: torch.Tensor):
-      B = x.shape[0]
-      N = x.shape[1]
-      x = x.view(B * N, -1)
+      B, N, T, F = x.shape
+      x = x.permute((0, 1, 3, 2))
+      x = x.view(B * N * F, T)
       x = self.linear(x)
-      x = x.view(B, N, -1)
+      x = x.view(B, N, F, -1)
+      x = x.permute((0, 1, 3, 2)).contiguous()
       return x
+
+  class FeatureLinear(nn.Module):
+    def __init__(self, in_feat_dim, out_feat_dim):
+      super(WindFFModel.FeatureLinear, self).__init__()
+      self.linear = nn.Linear(in_feat_dim, out_feat_dim)
+
+    def forward(self, g: DGLGraph, x: torch.Tensor):
+      B, N, T, F = x.shape
+      x = x.view(B * N, T * F)
+      x = self.linear(x)
+      x = x.view(B, N, T, -1)
+      return x
+
+  class GraphConv(nn.Module):
+    def __init__(self):
+      super(WindFFModel.GraphConv, self).__init__()
+
+    def forward(self, g: DGLGraph, x: torch.Tensor, w: torch.Tensor):
+      B, N, T, F = x.shape
+      x = x.view(B, N, x.shape[2] * x.shape[3])
+
+      with g.local_scope():
+        g.ndata['x'] = x
+        g.edata['w'] = w
+        g.update_all(message_func=fn.u_mul_e('h', 'w', 'm'),
+                     reduce_func=fn.mean('m', 'h'))
+        return g.ndata['h']
 
   def __init__(self, cfg: Config):
     super(WindFFModel, self).__init__()
     self.cfg = cfg
 
-    F = cfg.feat_dim
-    I = cfg.input_win_sz
-    O = cfg.output_win_sz
-    H = cfg.hidden_win_sz
+    idim = cfg.feat_dim
+    odim = cfg.target_dim
+    hdim = cfg.hidden_dim
 
-    self.conv = GraphConv(in_feats=(I * F), out_feats=(H * F))
+    iwin = cfg.input_win_sz
+    owin = cfg.output_win_sz
+    hwin = cfg.hidden_win_sz
 
-    self.l_linear_out_0 = self.Linear(
-        in_features=(H * F), out_features=(H * cfg.out_hidden_dim))
-    self.l_linear_out_1 = self.Linear(
-        in_features=(H * cfg.out_hidden_dim), out_features=(H * F))
-    self.l_linear_out_2 = self.Linear(
-        in_features=(H * F), out_features=(O * F)
+    # Input linear layers map (iwin, idim) features to (hwin, hdim) features
+    self.l_linear_in_0 = self.FeatureLinear(
+        in_feat_dim=idim,
+        out_feat_dim=hdim
+    )
+    self.l_linear_in_1 = self.TimeLinear(
+        in_win_sz=iwin,
+        out_win_sz=hwin
     )
 
-  def forward(self, g: DGLGraph, feat: torch.Tensor):
+    # Graph convolution layers
+    self.conv = self.GraphConv()
+
+    # Output linear layers map (hwin, hdim) features to (owin, odim) features
+    self.l_linear_out_0 = self.TimeLinear(
+        in_win_sz=hwin,
+        out_win_sz=owin
+    )
+    self.l_linear_out_1 = self.FeatureLinear(
+        in_feat_dim=hdim,
+        out_feat_dim=odim
+    )
+
+  def forward(self, g: DGLGraph, feat: torch.Tensor, w: torch.Tensor):
     '''
     @param feat: torch.tensor shape=(batch_sz/B, node_nb/N, input_win/I, feat_dim/D)
     '''
@@ -59,36 +104,39 @@ class WindFFModel(nn.Module):
     # Check input shape
     if len(feat.shape) == 4:
       batched = True
-      B, N, I, F = feat.shape
+      B, N, I_WIN, I_DIM = feat.shape
     elif len(feat.shape) == 3:
       batched = False
-      N, I, F = feat.shape
+      N, I_WIN, I_DIM = feat.shape
       feat = feat.unsqueeze(0)
       B = 1
     else:
       raise ValueError(
-          f"Input shape must be (B, N, I, F) or (N, I, F)")
+          f"Input shape must be (B, N, I_WIN, I_DIM) or (N, I_WIN, I_DIM)")
+
+    if (I_WIN != self.cfg.input_win_sz):
+      raise ValueError(
+          f"Input window size mismatch: {I_WIN} != {self.cfg.input_win_sz}")
+    if (I_DIM != self.cfg.feat_dim):
+      raise ValueError(
+          f"Feature dimension mismatch: {I_DIM} != {self.cfg.feat_dim}")
 
     assert feat.shape[1] == g.number_of_nodes(
     ) and feat.shape[2] == self.cfg.input_win_sz and feat.shape[3] == self.cfg.feat_dim
 
-    B, N, I, F = feat.shape
-    O = self.cfg.outpu_win_sz
-    H = self.cfg.hidden_win_sz
+    x = feat
+    x = self.l_linear_in_0(g, x)  # (B, N, I_WIN, H_DIM)
+    x = F.relu(x)
+    x = self.l_linear_in_1(g, x)  # (B, N, H_WIN, H_DIM)
+    x = F.relu(x)
 
-    # Graph convolution
-    x = feat.view(B, N, I * F)
-    x = self.conv(g, x)  # (B, N, H * F)
-    x = nn.ReLU(x)
+    x = self.conv(g, x, w)
+    x = F.relu(x)
 
     # Output linear layers
-    x = self.l_linear_out_0(x)  # (B, N, H * out_hidden_dim)
+    x = self.l_linear_out_0(x)  # (B, N, O_WIN, H_DIM)
     x = F.relu(x)
-    x = self.l_linear_out_1(x)  # (B, N, H * F)
-    x = F.relu(x)
-    x = self.l_linear_out_2(x)  # (B, N, O * F)
-
-    x = x.view(B, N, O, F)
+    x = self.l_linear_out_1(x)  # (B, N, O_WIN, O_DIM)
 
     if not batched:
       x = x.squeeze(0)
