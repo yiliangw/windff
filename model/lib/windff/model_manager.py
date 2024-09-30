@@ -107,11 +107,16 @@ class WindFFModelManager:
   def update(self):
     pass
 
-  def infer(self, dataset: WindFFDataset):
+  def infer(self, g: WindFFGraph):
     self.model.eval()
-    win_feat = WindFFDataset.get_windowed_node_feature(
-        dataset, 0,
-        win_start=)
+    with self.model.no_grad():
+      self.__check_graph(g)
+      # Get the last feature window
+      win_feat = g.get_windowed_node_feature(
+          -self.config.input_win_sz, self.config.input_win_sz)
+      w = g.get_normalized_edge_weight(self.config.adj_weight_threshold)
+      result = self.model(win_feat, w)
+      return result
 
   def __check_graph(self, g: WindFFGraph):
 

@@ -121,7 +121,7 @@ class WindFFDataset(DGLDataset, ABC):
 
     self.graph = g
 
-  def __getitem__(self, idx):
+  def __getitem__(self, idx) -> WindFFGraph:
     return self.graph
 
   def __len__(self):
