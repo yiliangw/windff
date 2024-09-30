@@ -9,10 +9,8 @@ class SDWPFDataset(WindFFDataset):
   COMPRESSED_ASSETS = os.path.join(os.path.dirname(__file__), "assets.tar.bz2")
   ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
   LOCATION_CSV = os.path.join(ASSETS_DIR, "location.csv")
-  TIMESERIES_CSV = os.path.join(ASSETS_DIR, "train.csv")
 
-  TEST_X_CSV = os.path.join(ASSETS_DIR, "test_x.csv")
-  TEST_Y_CSV = os.path.join(ASSETS_DIR, "test_y.csv")
+  TIMESERIES_CSV = os.path.join(ASSETS_DIR, "timeseries_0.csv")
 
   TARGETS = ['Patv']
 
