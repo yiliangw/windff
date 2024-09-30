@@ -4,9 +4,12 @@ from torch import optim, nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
 from .dataset import WindFFGraph, WindFFDataset
 from .model import WindFFModel
+import logging
 
 
 class WindFFModelManager:
+
+  DEFAULT_BATCH_SZ = 32
 
   def __init__(self, config: WindFFModel.Config):
     self.config = config
@@ -19,17 +22,20 @@ class WindFFModelManager:
     epochs: int
     early_stop: bool
     patience: int
-
     lr: float
     batch_sz: int
     val_ratio: float
 
-  def train(self, dataset: WindFFDataset, config: TrainConfig):
+  def train(self, graph_list: list[WindFFGraph], config: TrainConfig):
     '''Train a model from scratch
     '''
 
     # TODO: Train the model based on multiple graphs
-    g = dataset[0]
+    if len(graph_list) != 1:
+      logging.warning(
+          "Training on multiple graphs is not supported yet, only the first graph is used")
+
+    g = graph_list[0]
 
     self.__check_graph(g)
 
@@ -112,11 +118,33 @@ class WindFFModelManager:
     with self.model.no_grad():
       self.__check_graph(g)
       # Get the last feature window
-      win_feat = g.get_windowed_node_feature(
+      win_feat = g.get_windowed_node_feat(
           -self.config.input_win_sz, self.config.input_win_sz)
       w = g.get_normalized_edge_weight(self.config.adj_weight_threshold)
       result = self.model(win_feat, w)
       return result
+
+  def evaluate(self, g: WindFFGraph) -> float:
+    self.__check_graph(g)
+    feat, target = g.get_windowed_node_data_all(
+        input_win_sz=self.config.input_win_sz,
+        output_win_sz=self.config.output_win_sz
+    )
+    torch_ds = TensorDataset(feat, target)
+    loader = DataLoader(
+        torch_ds, batch_size=self.DEFAULT_BATCH_SZ, shuffle=False)
+
+    self.model.eval()
+    with self.model.no_grad():
+      loss = 0.0
+      criterion = nn.MSELoss()
+      for batch in loader:
+        batch_feat, batch_target = batch
+        w = g.get_normalized_edge_weight(self.config.adj_weight_threshold)
+        pred = self.model(batch_feat, w)
+        loss += criterion(pred, batch_target).item()
+      loss = loss / len(loader)
+      return loss
 
   def __check_graph(self, g: WindFFGraph):
 

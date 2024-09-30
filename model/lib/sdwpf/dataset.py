@@ -10,33 +10,35 @@ class SDWPFDataset(WindFFDataset):
   ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
   LOCATION_CSV = os.path.join(ASSETS_DIR, "location.csv")
 
-  TIMESERIES_CSV = os.path.join(ASSETS_DIR, "timeseries_0.csv")
+  TIMESERIES_CSV_LIST = [os.path.join(
+      SDWPFDataset.ASSETS_DIR, f"timeseries_{i}.csv") for i in range(3)]
 
   TARGETS = ['Patv']
 
   # {"00:00": 0, "00:10": 1, ..., "23:50": ...}
   time_dict = {}
 
-  @dataclass
+  @ dataclass
   class Config:
-    input_win_sz: int
-    output_win_sz: int
-    adj_weight_threshold: float
-    discard_features: list[str] = None
+    discard_features: list[str] = []
 
-  @classmethod
+  @ classmethod
   def initialize(cls):
     for i in range(0, 24):
       for j in range(0, 60, 10):
         cls.time_dict[f'{i:02d}:{j:02d}'] = len(cls.time_dict)
 
-  def __init__(self, config: Config):
-    super(SDWPFDataset, self).__init__("SDWPF")
-    self.config = config.copy()
-    if self.config.discard_features is None:
-      self.config.discard_features = []
+  def __init__(self, config: Config = None):
+    super().__init__("SDWPF")
+    if config is None:
+      self.config = SDWPFDataset.Config()
+    else:
+      self.config = config.copy()
 
-  def get_config(self):
+  def __len__(self):
+    return len(self.TIMESERIES_CSV_LIST)
+
+  def get_data(self, idx):
     if not os.path.exists(self.ASSETS_DIR):
       import tarfile
       with tarfile.open(self.COMPRESSED_ASSETS, "r:bz2") as tar:
@@ -44,15 +46,9 @@ class SDWPFDataset(WindFFDataset):
 
     data = self.__preprocess(
         raw_loc_df=pd.read_csv(self.LOCATION_CSV),
-        raw_ts_df=pd.read_csv(self.TIMESERIES_CSV)
+        raw_ts_df=pd.read_csv(self.TIMESERIES_CSV_LIST[idx])
     )
-
-    return WindFFDataset.Config(
-        data=data,
-        adj_weight_threshold=self.config.adj_weight_threshold,
-        input_win_sz=self.config.input_win_sz,
-        output_win_sz=self.config.output_win_sz
-    )
+    return data
 
   def __preprocess(self, raw_loc_df: pd.DataFrame, raw_ts_df: pd.DataFrame) -> WindFFDataset.Data:
 
@@ -87,11 +83,6 @@ class SDWPFDataset(WindFFDataset):
 
     # Interpolate missing values
     ts_df.interpolate(method='linear', inplace=True)
-
-    # # Normalize features
-    # for f in ts_df.columns:
-    #   if f not in {'TurbID', 'Time', *self.TARGETS}:
-    #     ts_df[f] = (ts_df[f] - ts_df[f].mean()) / ts_df[f].std()
 
     return WindFFDataset.Data(
         turb_id_col='TurbID',

@@ -9,16 +9,17 @@ from dgl.nn import GraphConv
 from dataclasses import dataclass
 
 
-class WindFFModel(nn.Module):
+@dataclass
+class WindFFModelConfig:
+  feat_dim: int
+  target_dim: int
+  hidden_dim: int
+  input_win_sz: int
+  output_win_sz: int
+  hidden_win_sz: int
 
-  @dataclass
-  class Config:
-    feat_dim: int
-    target_dim: int
-    hidden_dim: int
-    input_win_sz: int
-    output_win_sz: int
-    hidden_win_sz: int
+
+class WindFFModel(nn.Module):
 
   class TimeLinear(nn.Module):
     def __init__(self, in_win_sz, out_win_sz):
@@ -61,17 +62,17 @@ class WindFFModel(nn.Module):
                      reduce_func=fn.mean('m', 'h'))
         return g.ndata['h']
 
-  def __init__(self, cfg: Config):
+  def __init__(self, config: WindFFModelConfig):
     super(WindFFModel, self).__init__()
-    self.cfg = cfg
+    self.config = config
 
-    idim = cfg.feat_dim
-    odim = cfg.target_dim
-    hdim = cfg.hidden_dim
+    idim = config.feat_dim
+    odim = config.target_dim
+    hdim = config.hidden_dim
 
-    iwin = cfg.input_win_sz
-    owin = cfg.output_win_sz
-    hwin = cfg.hidden_win_sz
+    iwin = config.input_win_sz
+    owin = config.output_win_sz
+    hwin = config.hidden_win_sz
 
     # Input linear layers map (iwin, idim) features to (hwin, hdim) features
     self.l_linear_in_0 = self.FeatureLinear(
@@ -114,15 +115,15 @@ class WindFFModel(nn.Module):
       raise ValueError(
           f"Input shape must be (B, N, I_WIN, I_DIM) or (N, I_WIN, I_DIM)")
 
-    if (I_WIN != self.cfg.input_win_sz):
+    if (I_WIN != self.config.input_win_sz):
       raise ValueError(
-          f"Input window size mismatch: {I_WIN} != {self.cfg.input_win_sz}")
-    if (I_DIM != self.cfg.feat_dim):
+          f"Input window size mismatch: {I_WIN} != {self.config.input_win_sz}")
+    if (I_DIM != self.config.feat_dim):
       raise ValueError(
-          f"Feature dimension mismatch: {I_DIM} != {self.cfg.feat_dim}")
+          f"Feature dimension mismatch: {I_DIM} != {self.config.feat_dim}")
 
     assert feat.shape[1] == g.number_of_nodes(
-    ) and feat.shape[2] == self.cfg.input_win_sz and feat.shape[3] == self.cfg.feat_dim
+    ) and feat.shape[2] == self.config.input_win_sz and feat.shape[3] == self.config.feat_dim
 
     x = feat
     x = self.l_linear_in_0(g, x)  # (B, N, I_WIN, H_DIM)

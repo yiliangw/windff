@@ -18,8 +18,8 @@ class WindFFGraph(DGLGraph):
     target = g.ndata['target']
     data_nb = feat.shape[1] - input_win_sz - output_win_sz + 1
 
-    # (node_nb, datapoint_nb, input_win_sz, feature_dim)
-    win_feat = torch.stack([self.get_windowed_node_feature(
+    # (node_nb, datapoint_nb, input_win_sz, feat_dim)
+    win_feat = torch.stack([self.get_windowed_node_feat(
         g, i, input_win_sz) for i in range(data_nb)], dim=1)
     # (node_nb, datapoint_nb, output_win_sz, target_dim)
     win_target = torch.stack(
@@ -27,7 +27,7 @@ class WindFFGraph(DGLGraph):
 
     return win_feat, win_target
 
-  def get_windowed_node_feature(self, win_start: int, input_win_sz: int) -> torch.Tensor:
+  def get_windowed_node_feat(self, win_start: int, input_win_sz: int) -> torch.Tensor:
     """Get the windowed node feature starting from win_start
     """
     g = self
@@ -94,42 +94,63 @@ class WindFFDataset(DGLDataset, ABC):
 
   def __init__(self, name: str = None):
     super().__init__(name=name)
-    self.g: WindFFGraph = None
+    self.graph_list: list[WindFFGraph] = []
 
   def process(self):
-    data = self.get_data()
-    self.__check_config(data)
-    g = self.__create_raw_graph(data)
 
-    grouped_ts_df = data.turb_timeseries_df.groupby(data.turb_id_col)
+    feat_dim = None
+    target_dim = None
 
-    node_ts_dfs = [grouped_ts_df.get_group(node).sort_values(
-        by=data.time_col, ascending=True) for node in g.nodes()]
+    for i in range(len(self)):
+      data = self.get_data(i)
+      self.__check_data(data)
+      g = self.__create_raw_graph(data)
 
-    feat_cols = list(set(data.turb_timeseries_df.columns) -
-                     {data.turb_id_col, data.time_col, *data.turb_timeseries_target_cols})
+      grouped_ts_df = data.turb_timeseries_df.groupby(data.turb_id_col)
 
-    feat_series_tensor = torch.tensor(
-        [n_df[feat_cols].values for n_df in node_ts_dfs])
-    target_series_tensor = torch.tensor([
-        n_df[data.turb_timeseries_target_cols].values for n_df in node_ts_dfs])
+      node_ts_dfs = [grouped_ts_df.get_group(node).sort_values(
+          by=data.time_col, ascending=True) for node in g.nodes()]
 
-    # (node_nb, time, feature_dim)
-    g.ndata['feat'] = feat_series_tensor
-    # (node_nb, time, target_dim)
-    g.ndata['target'] = target_series_tensor
+      feat_cols = list(set(data.turb_timeseries_df.columns) -
+                       {data.turb_id_col, data.time_col, *data.turb_timeseries_target_cols})
 
-    self.graph = g
+      feat_series_tensor = torch.tensor(
+          [n_df[feat_cols].values for n_df in node_ts_dfs])
+      target_series_tensor = torch.tensor([
+          n_df[data.turb_timeseries_target_cols].values for n_df in node_ts_dfs])
+
+      if feat_dim is None:
+        feat_dim = feat_series_tensor.shape[-1]
+        target_dim = target_series_tensor.shape[-1]
+      else:
+        if feat_series_tensor.shape[-1] != feat_dim:
+          raise ValueError("The feature dimension is not consistent")
+        if target_series_tensor.shape[-1] != target_dim:
+          raise ValueError("The target dimension is not consistent")
+
+      # (node_nb, time, feat_dim)
+      g.ndata['feat'] = feat_series_tensor
+      # (node_nb, time, target_dim)
+      g.ndata['target'] = target_series_tensor
+
+      self.graph_list.append(g)
 
   def __getitem__(self, idx) -> WindFFGraph:
-    return self.graph
-
-  def __len__(self):
-    return 1
+    return self.graph_list[idx]
 
   @abstractmethod
-  def get_data(self) -> Data:
+  def __len__(self):
     pass
+
+  @abstractmethod
+  def get_data(self, idx) -> Data:
+    pass
+
+  def get_feat_dim(self):
+    return self[0].ndata['feat'].shape[-1]
+
+  def get_target_dim(self):
+    return self[0].ndata['target'].shape[-1]
 
   @classmethod
   def __check_data(cls, data: Data):
