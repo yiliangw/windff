@@ -1,2 +1,2 @@
 from .model import WindFFModel
-from .dataset import WindFFDataset
+from .dataset import WindFFGraph, WindFFDataset

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
-from .dataset import WindFFDataset
+from .dataset import WindFFGraph, WindFFDataset
 from .model import WindFFModel
 
 
@@ -27,18 +27,20 @@ class WindFFModelManager:
   def train(self, dataset: WindFFDataset, config: TrainConfig):
     '''Train a model from scratch
     '''
-    self.__check_dataset(dataset)
+
+    # TODO: Train the model based on multiple graphs
+    g = dataset[0]
+
+    self.__check_graph(g)
 
     self.model = WindFFModel(self.config)
     self.model = self.__init_model_params(self.model)
 
-    feat, target = WindFFDataset.get_windowed_node_data(
-        dataset, 0,
+    feat, target = g.get_windowed_node_data_all(
         input_win_sz=self.config.input_win_sz,
         output_win_sz=self.config.output_win_sz
     )
-    w = WindFFDataset.get_normalized_edge_weight(
-        dataset, 0
+    w = g.get_normalized_edge_weight(
         adj_weight_threshold=config.adj_weight_threshold
     )
 
@@ -105,12 +107,14 @@ class WindFFModelManager:
   def update(self):
     pass
 
-  def infer(self):
-    pass
+  def infer(self, dataset: WindFFDataset):
+    self.model.eval()
+    win_feat = WindFFDataset.get_windowed_node_feature(
+        dataset, 0,
+        win_start=)
 
-  def __check_dataset(self, dataset: WindFFDataset):
+  def __check_graph(self, g: WindFFGraph):
 
-    g = dataset[0]
     feat = g.ndata['feat']  # (N, DATAPOINT_NB, INPUT_WIN_SZ, FEAT_DIM)
     target = g.ndata['target']  # (N, DATAPOINT_NB, OUTPUT_WIN_SZ, TARGET_DIM)
     w = g.edata['w']
