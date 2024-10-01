@@ -10,8 +10,7 @@ class SDWPFDataset(WindFFDataset):
   ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
   LOCATION_CSV = os.path.join(ASSETS_DIR, "location.csv")
 
-  TIMESERIES_CSV_LIST = [os.path.join(
-      SDWPFDataset.ASSETS_DIR, f"timeseries_{i}.csv") for i in range(3)]
+  TIMESERIES_CSV_LIST: list[str] = []
 
   TARGETS = ['Patv']
 
@@ -20,7 +19,7 @@ class SDWPFDataset(WindFFDataset):
 
   @ dataclass
   class Config:
-    discard_features: list[str] = []
+    discard_features: list[str] = None
 
   @ classmethod
   def initialize(cls):
@@ -28,12 +27,19 @@ class SDWPFDataset(WindFFDataset):
       for j in range(0, 60, 10):
         cls.time_dict[f'{i:02d}:{j:02d}'] = len(cls.time_dict)
 
+    cls.TIMESERIES_CSV_LIST = [os.path.join(
+        cls.ASSETS_DIR, f"timeseries_{i}.csv") for i in range(1, 3)]
+
   def __init__(self, config: Config = None):
-    super().__init__("SDWPF")
     if config is None:
       self.config = SDWPFDataset.Config()
     else:
       self.config = config.copy()
+
+    if self.config.discard_features is None:
+      self.config.discard_features = []
+
+    super().__init__("SDWPF")
 
   def __len__(self):
     return len(self.TIMESERIES_CSV_LIST)
@@ -50,24 +56,30 @@ class SDWPFDataset(WindFFDataset):
     )
     return data
 
+  def get_data_cache_path(self, idx):
+    return os.path.join(self.ASSETS_DIR, f"cache/cache_{idx}.pkl")
+
+  def get_metadata_cache_path(self) -> str:
+    return os.path.join(self.ASSETS_DIR, "cache/metadata.pkl")
+
   def __preprocess(self, raw_loc_df: pd.DataFrame, raw_ts_df: pd.DataFrame) -> WindFFDataset.Data:
 
     # Location
     loc_df = pd.DataFrame()
     loc_df['TurbID'] = raw_loc_df['TurbID'].astype(
-        pd.UInt32Dtype) - 1
-    loc_df['x'] = raw_loc_df['x'].astype(pd.Float32Dtype)
-    loc_df['y'] = raw_loc_df['y'].astype(pd.Float32Dtype)
+        pd.UInt32Dtype()) - 1
+    loc_df['x'] = raw_loc_df['x'].astype(pd.Float32Dtype())
+    loc_df['y'] = raw_loc_df['y'].astype(pd.Float32Dtype())
 
     # Timeseries
     ts_df = pd.DataFrame()
 
     # Turbine ID
-    ts_df['TurbID'] = raw_ts_df['TurbID'].astype(pd.UInt32Dtype) - 1
+    ts_df['TurbID'] = raw_ts_df['TurbID'].astype(pd.UInt32Dtype()) - 1
 
     # Time
-    days = raw_ts_df['Day'].astype(pd.UInt32Dtype)
-    tmstamp = raw_ts_df['Tmstamp'].astype(pd.StringDtype)
+    days = raw_ts_df['Day'].astype(pd.UInt32Dtype())
+    tmstamp = raw_ts_df['Tmstamp'].astype(pd.StringDtype())
     ts_df['Time'] = tmstamp.map(self.time_dict) + \
         (days - days.min()) * len(self.time_dict)
 
