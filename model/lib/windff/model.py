@@ -17,6 +17,7 @@ class WindFFModelConfig:
   input_win_sz: int
   output_win_sz: int
   hidden_win_sz: int
+  dtype: torch.dtype = torch.float64
 
 
 class WindFFModel(nn.Module):
@@ -29,9 +30,9 @@ class WindFFModel(nn.Module):
     def forward(self, g: DGLGraph, x: torch.Tensor):
       B, N, T, F = x.shape
       x = x.permute((0, 1, 3, 2))
-      x = x.view(B * N * F, T)
+      x = x.reshape(B * N * F, -1)
       x = self.linear(x)
-      x = x.view(B, N, F, -1)
+      x = x.reshape(B, N, F, -1)
       x = x.permute((0, 1, 3, 2)).contiguous()
       return x
 
@@ -42,9 +43,9 @@ class WindFFModel(nn.Module):
 
     def forward(self, g: DGLGraph, x: torch.Tensor):
       B, N, T, F = x.shape
-      x = x.view(B * N, T * F)
+      x = x.reshape(B * N * T, F)
       x = self.linear(x)
-      x = x.view(B, N, T, -1)
+      x = x.reshape(B, N, T, -1)
       return x
 
   class GraphConv(nn.Module):
@@ -53,17 +54,24 @@ class WindFFModel(nn.Module):
 
     def forward(self, g: DGLGraph, x: torch.Tensor, w: torch.Tensor):
       B, N, T, F = x.shape
-      x = x.view(B, N, x.shape[2] * x.shape[3])
+      # (node_nb, batch_sz, input_win_sz, hidden_dim)
+      x = x.permute((1, 0, 2, 3)).contiguous()
 
       with g.local_scope():
         g.ndata['x'] = x
         g.edata['w'] = w
-        g.update_all(message_func=fn.u_mul_e('h', 'w', 'm'),
+        g.update_all(message_func=fn.u_mul_e('x', 'w', 'm'),
                      reduce_func=fn.mean('m', 'h'))
-        return g.ndata['h']
+        x = g.ndata['h']
+        # (batch_sz, node_nb, input_win_sz, hidden_dim)
+        x = x.permute((1, 0, 2, 3)).contiguous()
+
+      return x
 
   def __init__(self, config: WindFFModelConfig):
+
     super(WindFFModel, self).__init__()
+    # torch.set_default_dtype(config.dtype)
     self.config = config
 
     idim = config.feat_dim
@@ -97,6 +105,8 @@ class WindFFModel(nn.Module):
         out_feat_dim=odim
     )
 
+    self.to(config.dtype)
+
   def forward(self, g: DGLGraph, feat: torch.Tensor, w: torch.Tensor):
     '''
     @param feat: torch.tensor shape=(batch_sz/B, node_nb/N, input_win/I, feat_dim/D)
@@ -122,7 +132,7 @@ class WindFFModel(nn.Module):
       raise ValueError(
           f"Feature dimension mismatch: {I_DIM} != {self.config.feat_dim}")
 
-    assert feat.shape[1] == g.number_of_nodes(
+    assert feat.shape[1] == g.num_nodes(
     ) and feat.shape[2] == self.config.input_win_sz and feat.shape[3] == self.config.feat_dim
 
     x = feat
@@ -135,9 +145,9 @@ class WindFFModel(nn.Module):
     x = F.relu(x)
 
     # Output linear layers
-    x = self.l_linear_out_0(x)  # (B, N, O_WIN, H_DIM)
+    x = self.l_linear_out_0(g, x)  # (B, N, O_WIN, H_DIM)
     x = F.relu(x)
-    x = self.l_linear_out_1(x)  # (B, N, O_WIN, O_DIM)
+    x = self.l_linear_out_1(g, x)  # (B, N, O_WIN, O_DIM)
 
     if not batched:
       x = x.squeeze(0)

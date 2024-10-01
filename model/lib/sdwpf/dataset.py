@@ -1,7 +1,9 @@
+from torch._C import dtype
 from ..windff import WindFFDataset
 import os
 import pandas as pd
 from dataclasses import dataclass
+import torch
 
 
 class SDWPFDataset(WindFFDataset):
@@ -44,7 +46,7 @@ class SDWPFDataset(WindFFDataset):
   def __len__(self):
     return len(self.TIMESERIES_CSV_LIST)
 
-  def get_data(self, idx):
+  def _get_raw_data(self, idx):
     if not os.path.exists(self.ASSETS_DIR):
       import tarfile
       with tarfile.open(self.COMPRESSED_ASSETS, "r:bz2") as tar:
@@ -56,13 +58,16 @@ class SDWPFDataset(WindFFDataset):
     )
     return data
 
-  def get_data_cache_path(self, idx):
-    return os.path.join(self.ASSETS_DIR, f"cache/cache_{idx}.pkl")
+  def _get_data_cache_path(self, idx):
+    return os.path.join(self.ASSETS_DIR, f"cache/timeseries_{idx}.pkl")
 
-  def get_metadata_cache_path(self) -> str:
+  def _get_metadata_cache_path(self) -> str:
     return os.path.join(self.ASSETS_DIR, "cache/metadata.pkl")
 
-  def __preprocess(self, raw_loc_df: pd.DataFrame, raw_ts_df: pd.DataFrame) -> WindFFDataset.Data:
+  def _get_tensor_dtype(self):
+    return torch.float64
+
+  def __preprocess(self, raw_loc_df: pd.DataFrame, raw_ts_df: pd.DataFrame) -> WindFFDataset.RawData:
 
     # Location
     loc_df = pd.DataFrame()
@@ -96,7 +101,7 @@ class SDWPFDataset(WindFFDataset):
     # Interpolate missing values
     ts_df.interpolate(method='linear', inplace=True)
 
-    return WindFFDataset.Data(
+    return WindFFDataset.RawData(
         turb_id_col='TurbID',
         time_col='Time',
 

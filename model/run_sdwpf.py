@@ -1,14 +1,16 @@
 import sys
 import os
 sys.path.append(os.path.dirname(__file__))
-
 from lib.sdwpf import SDWPFDataset
 from lib.windff import WindFFModelManager, WindFFModelConfig
 
+import torch
 import logging
+logging.basicConfig(level=logging.INFO)
 
 
 def main():
+
   import argparse
 
   parser = argparse.ArgumentParser()
@@ -35,7 +37,8 @@ def main():
       hidden_dim=args.hidden_dim,
       input_win_sz=args.input_win_sz,
       output_win_sz=args.output_win_sz,
-      hidden_win_sz=args.hidden_win_sz
+      hidden_win_sz=args.hidden_win_sz,
+      dtype=torch.float64
   ))
 
   model_manager.train(
@@ -55,5 +58,9 @@ def main():
   loss_1 = model_manager.evaluate(dataset[1])
   logging.info(f"Validation loss 1: {loss_1}")
 
-  loss_2 = model_manager.evaluate(dataset[2])
-  logging.info(f"Validation loss 2: {loss_2}")
+  # loss_2 = model_manager.evaluate(dataset[2])
+  # logging.info(f"Validation loss 2: {loss_2}")
+
+
+if __name__ == "__main__":
+  main()

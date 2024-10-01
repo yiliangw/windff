@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 
 
 class WindFFGraph(object):
-  def __init__(self, node_nb: int, edges: list[tuple[int, int, float]], feat: torch.Tensor, target: torch.Tensor):
+  def __init__(self, node_nb: int, edges: list[tuple[int, int, float]], feat: torch.Tensor, target: torch.Tensor, dtype: torch.dtype):
     """
     Args:
         edges (list[tuple[int, int, float]]): (u, v, dist) for every edge
@@ -19,7 +19,7 @@ class WindFFGraph(object):
     u_list = torch.tensor([u for u, _, _ in edges], dtype=torch.int64)
     v_list = torch.tensor([v for _, v, _ in edges], dtype=torch.int64)
     dist_list = torch.tensor(
-        [dist for _, _, dist in edges], dtype=torch.float32)
+        [dist for _, _, dist in edges])
 
     if max(u_list) >= node_nb or max(v_list) >= node_nb or min(u_list) < 0 or min(v_list) < 0:
       raise ValueError("The edge contains nodes that are out of bounds")
@@ -32,9 +32,9 @@ class WindFFGraph(object):
 
     self.g = dgl.graph((u_list, v_list), num_nodes=node_nb)
 
-    self.__node_feat = feat
-    self.__node_target = target
-    self.__edge_dist = dist_list
+    self.__node_feat = feat.to(dtype)
+    self.__node_target = target.to(dtype)
+    self.__edge_dist = dist_list.to(dtype)
 
   def get_windowed_node_data_all(self, input_win_sz: int, output_win_sz: int) -> tuple[torch.Tensor, torch.Tensor]:
     feat = self.get_node_feat()
@@ -109,8 +109,10 @@ class WindFFDataset(DGLDataset, ABC):
 
   """
 
+  DEFAULT_TENSOR_DTYPE = torch.float32
+
   @dataclass
-  class Data:
+  class RawData:
     """Preprocessed data for WindFFDataset
 
     Attributes:
@@ -138,7 +140,7 @@ class WindFFDataset(DGLDataset, ABC):
     super().__init__(name=name)
 
   def has_cache(self):
-    meta_cache = self.get_metadata_cache_path()
+    meta_cache = self._get_metadata_cache_path()
     if meta_cache is None:
       return False
     else:
@@ -151,18 +153,19 @@ class WindFFDataset(DGLDataset, ABC):
     self.meta["target_dim"] = g.get_node_target().shape[2]
 
   def save(self):
-    meta_cache = self.get_metadata_cache_path()
+    meta_cache = self._get_metadata_cache_path()
     if meta_cache is None:
       return
     logging.info(f"Saving metadata to {meta_cache}")
     import os
     import pickle
-    os.makedirs(os.path.dirname(self.get_metadata_cache_path()), exist_ok=True)
-    with open(self.get_metadata_cache_path(), "wb") as f:
+    os.makedirs(os.path.dirname(
+        self._get_metadata_cache_path()), exist_ok=True)
+    with open(self._get_metadata_cache_path(), "wb") as f:
       pickle.dump(self.meta, f)
 
   def load(self):
-    meta_cache = self.get_metadata_cache_path()
+    meta_cache = self._get_metadata_cache_path()
     logging.info(f"Loading metadata from {meta_cache}")
     import pickle
     self.meta = pickle.load(open(meta_cache, "rb"))
@@ -171,7 +174,7 @@ class WindFFDataset(DGLDataset, ABC):
     if (idx >= len(self)):
       raise IndexError("Index out of bounds")
 
-    cache_pkl = self.get_data_cache_path(idx)
+    cache_pkl = self._get_data_cache_path(idx)
     if cache_pkl is None:
       return self.__process_idx(idx)
 
@@ -193,14 +196,17 @@ class WindFFDataset(DGLDataset, ABC):
   def __len__(self):
     pass
 
+  def _get_tensor_dtype(self) -> torch.dtype:
+    return WindFFDataset.DEFAULT_TENSOR_DTYPE
+
   @abstractmethod
-  def get_data(self, idx) -> Data:
+  def _get_raw_data(self, idx) -> RawData:
     pass
 
-  def get_data_cache_path(self, idx) -> str:
+  def _get_data_cache_path(self, idx) -> str:
     return None
 
-  def get_metadata_cache_path(self) -> str:
+  def _get_metadata_cache_path(self) -> str:
     return None
 
   def get_feat_dim(self) -> int:
@@ -210,7 +216,7 @@ class WindFFDataset(DGLDataset, ABC):
     return self.meta["target_dim"]
 
   def __process_idx(self, idx: int) -> WindFFGraph:
-    data = self.get_data(idx)
+    data = self._get_raw_data(idx)
     self.__check_data(data)
 
     node_nb, edges = self.__get_topology(data)
@@ -223,6 +229,8 @@ class WindFFDataset(DGLDataset, ABC):
     feat_cols = list(set(data.turb_timeseries_df.columns) -
                      {data.turb_id_col, data.time_col, *data.turb_timeseries_target_cols})
 
+    dtype = self._get_tensor_dtype()
+
     # (node_nb, time, feat_dim)
     feat_series_tensor = torch.tensor(
         np.array([n_df[feat_cols].values for n_df in node_ts_dfs]))
@@ -231,10 +239,10 @@ class WindFFDataset(DGLDataset, ABC):
         np.array([
             n_df[data.turb_timeseries_target_cols].values for n_df in node_ts_dfs]))
 
-    return WindFFGraph(node_nb, edges, feat_series_tensor, target_series_tensor)
+    return WindFFGraph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
 
   @classmethod
-  def __check_data(cls, data: Data):
+  def __check_data(cls, data: RawData):
 
     turbcol = data.turb_id_col
     timecol = data.time_col
@@ -254,7 +262,7 @@ class WindFFDataset(DGLDataset, ABC):
       raise ValueError()
 
   @classmethod
-  def __get_topology(cls, data: Data) -> tuple[int, list[tuple[int, int, float]]]:
+  def __get_topology(cls, data: RawData) -> tuple[int, list[tuple[int, int, float]]]:
     df = data.turb_location_df
     idcol = data.turb_id_col
     nodes = df[idcol].unique()
