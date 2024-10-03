@@ -16,10 +16,16 @@ class WindFFGraph(object):
         edges (list[tuple[int, int, float]]): (u, v, dist) for every edge
 
     """
+    if torch.isnan(feat).any():
+      raise ValueError("Input feature contains NaN")
+
     u_list = torch.tensor([u for u, _, _ in edges], dtype=torch.int64)
     v_list = torch.tensor([v for _, v, _ in edges], dtype=torch.int64)
     dist_list = torch.tensor(
         [dist for _, _, dist in edges])
+
+    if torch.isnan(dist_list).any():
+      raise ValueError("Edge distance contains NaN")
 
     if max(u_list) >= node_nb or max(v_list) >= node_nb or min(u_list) < 0 or min(v_list) < 0:
       raise ValueError("The edge contains nodes that are out of bounds")
@@ -217,7 +223,7 @@ class WindFFDataset(DGLDataset, ABC):
 
   def __process_idx(self, idx: int) -> WindFFGraph:
     data = self._get_raw_data(idx)
-    self.__check_data(data)
+    self.__check_raw_data(data)
 
     node_nb, edges = self.__get_topology(data)
 
@@ -242,7 +248,7 @@ class WindFFDataset(DGLDataset, ABC):
     return WindFFGraph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
 
   @classmethod
-  def __check_data(cls, data: RawData):
+  def __check_raw_data(cls, data: RawData):
 
     turbcol = data.turb_id_col
     timecol = data.time_col
@@ -260,6 +266,12 @@ class WindFFDataset(DGLDataset, ABC):
     # turbine_timeseries_df
     if not {turbcol, timecol, *data.turb_timeseries_target_cols} < set(data.turb_timeseries_df.columns):
       raise ValueError()
+
+    # Check whether there are NaN values
+    if data.turb_location_df.isnull().values.any():
+      raise ValueError("turbine_location_df has NaN values")
+    if data.turb_timeseries_df.isnull().values.any():
+      raise ValueError("turbine_timeseries_df has NaN values")
 
   @classmethod
   def __get_topology(cls, data: RawData) -> tuple[int, list[tuple[int, int, float]]]:

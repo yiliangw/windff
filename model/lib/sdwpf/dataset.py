@@ -100,6 +100,8 @@ class SDWPFDataset(WindFFDataset):
 
     # Interpolate missing values
     ts_df.interpolate(method='linear', inplace=True)
+    ts_df.ffill(inplace=True)
+    ts_df.bfill(inplace=True)
 
     return WindFFDataset.RawData(
         turb_id_col='TurbID',
