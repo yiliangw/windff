@@ -1,7 +1,8 @@
-from ..windff.data import WindFFTurbRawData
-import datetime
+from ..windff.data.raw import WindFFTurbRawData, RawDataParsingError
 import json
-import logging
+from influxdb_client import Point as InfluxDBPoint
+import pandas as pd
+import numpy as np
 
 
 class TurbRawData(WindFFTurbRawData):
@@ -19,8 +20,23 @@ class TurbRawData(WindFFTurbRawData):
     patv (float): Active power (kW)
   """
 
-  def __init__(self, timestamp: datetime.datetime, turb_id: str, wspd: float, wdir: float, etmp: float, itmp: float, ndir: float, pab1: float, pab2: float, pab3: float, prtv: float, patv: float):
-    self.timestamp: datetime.datetime = timestamp
+  dtype_map = {
+      "timestamp": np.datetime64,
+      "turb_id": str,
+      "wspd": np.float64,
+      "wdir": np.float64,
+      "etmp": np.float64,
+      "itmp": np.float64,
+      "ndir": np.float64,
+      "pab1": np.float64,
+      "pab2": np.float64,
+      "pab3": np.float64,
+      "prtv": np.float64,
+      "patv": np.float64
+  }
+
+  def __init__(self, timestamp: np.datetime64, turb_id: str, wspd: float, wdir: float, etmp: float, itmp: float, ndir: float, pab1: float, pab2: float, pab3: float, prtv: float, patv: float):
+    self.timestamp: np.datetime64 = timestamp
     self.turb_id = turb_id
     self.wspd = wspd
     self.wdir = wdir
@@ -43,7 +59,7 @@ class TurbRawData(WindFFTurbRawData):
   def from_json(cls, json_str: str):
     try:
       d = json.loads(json_str)
-      timestamp = datetime.datetime.fromisoformat(d["timestamp"])
+      timestamp = np.datetime64(d["timestamp"])
       turb_id = d["turb_id"]
       wspd = float(d["wspd"])
       wdir = float(d["wdir"])
@@ -57,8 +73,7 @@ class TurbRawData(WindFFTurbRawData):
       patv = float(d["patv"])
       return cls(timestamp, turb_id, wspd, wdir, etmp, itmp, ndir, pab1, pab2, pab3, prtv, patv)
     except Exception as e:
-      logging.warning(f"Error parsing data from json: {e}")
-      return None
+      raise RawDataParsingError(str(e))
 
   def to_json(self):
     return json.dumps({
@@ -75,3 +90,18 @@ class TurbRawData(WindFFTurbRawData):
         "prtv": self.prtv,
         "patv": self.patv
     })
+
+  def to_influxdb_point(self) -> InfluxDBPoint:
+    return InfluxDBPoint("turb_raw_data") \
+        .tag("turb_id", self.turb_id) \
+        .field("wspd", self.wspd) \
+        .field("wdir", self.wdir) \
+        .field("etmp", self.etmp) \
+        .field("itmp", self.itmp) \
+        .field("ndir", self.ndir) \
+        .field("pab1", self.pab1) \
+        .field("pab2", self.pab2) \
+        .field("pab3", self.pab3) \
+        .field("prtv", self.prtv) \
+        .field("patv", self.patv) \
+        .time(self.timestamp)
