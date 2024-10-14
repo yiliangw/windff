@@ -1,4 +1,4 @@
-from ..data import TurbRawData, DataParsingError
+from ..data.raw import TurbRawData, RawDataParsingError
 from dataclasses import dataclass
 from flask import Flask, request, jsonify
 import logging
@@ -47,7 +47,7 @@ class DataCollector(object):
         res = self.__receive_turb_raw_data(data)
         if not res:
           return jsonify({"error": "Error writing to InfluxDB"}), 500
-      except DataParsingError as e:
+      except RawDataParsingError as e:
         logging.warning(f"Error parsing data: {str(e)}")
         return jsonify({"error": str(e)}), 400
 

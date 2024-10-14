@@ -3,7 +3,7 @@ from datetime import datetime
 from influxdb_client import Point as InfluxDBPoint
 
 
-class DataParsingError(Exception):
+class RawDataParsingError(Exception):
   def __init__(self, str):
     super().__init__(str)
 
