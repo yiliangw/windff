@@ -20,11 +20,11 @@ class WindFFModelConfig:
   dtype: torch.dtype = torch.float64
 
 
-class WindFFModel(nn.Module):
+class Model(nn.Module):
 
   class TimeLinear(nn.Module):
     def __init__(self, in_win_sz, out_win_sz):
-      super(WindFFModel.TimeLinear, self).__init__()
+      super(Model.TimeLinear, self).__init__()
       self.linear = nn.Linear(in_win_sz, out_win_sz)
 
     def forward(self, g: DGLGraph, x: torch.Tensor):
@@ -38,7 +38,7 @@ class WindFFModel(nn.Module):
 
   class FeatureLinear(nn.Module):
     def __init__(self, in_feat_dim, out_feat_dim):
-      super(WindFFModel.FeatureLinear, self).__init__()
+      super(Model.FeatureLinear, self).__init__()
       self.linear = nn.Linear(in_feat_dim, out_feat_dim)
 
     def forward(self, g: DGLGraph, x: torch.Tensor):
@@ -50,7 +50,7 @@ class WindFFModel(nn.Module):
 
   class GraphConv(nn.Module):
     def __init__(self):
-      super(WindFFModel.GraphConv, self).__init__()
+      super(Model.GraphConv, self).__init__()
 
     def forward(self, g: DGLGraph, x: torch.Tensor, w: torch.Tensor):
       B, N, T, F = x.shape
@@ -70,7 +70,7 @@ class WindFFModel(nn.Module):
 
   def __init__(self, config: WindFFModelConfig):
 
-    super(WindFFModel, self).__init__()
+    super(Model, self).__init__()
     # torch.set_default_dtype(config.dtype)
     self.config = config
 

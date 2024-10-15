@@ -9,7 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 
 
-class WindFFGraph(object):
+class Graph(object):
   def __init__(self, node_nb: int, edges: list[tuple[int, int, float]], feat: torch.Tensor, target: torch.Tensor, dtype: torch.dtype):
     """
     Args:
@@ -138,7 +138,7 @@ class WindFFDataset(DGLDataset, ABC):
     turb_timeseries_target_cols: list[str]
 
   def __init__(self, name: str = None):
-    self.graph_list: list[WindFFGraph] = []
+    self.graph_list: list[Graph] = []
     self.meta = {
         "feat_dim": 0,
         "target_dim": 0
@@ -176,7 +176,7 @@ class WindFFDataset(DGLDataset, ABC):
     import pickle
     self.meta = pickle.load(open(meta_cache, "rb"))
 
-  def __getitem__(self, idx) -> WindFFGraph:
+  def __getitem__(self, idx) -> Graph:
     if (idx >= len(self)):
       raise IndexError("Index out of bounds")
 
@@ -221,7 +221,7 @@ class WindFFDataset(DGLDataset, ABC):
   def get_target_dim(self) -> int:
     return self.meta["target_dim"]
 
-  def __process_idx(self, idx: int) -> WindFFGraph:
+  def __process_idx(self, idx: int) -> Graph:
     data = self._get_raw_data(idx)
     self.__check_raw_data(data)
 
@@ -245,7 +245,7 @@ class WindFFDataset(DGLDataset, ABC):
         np.array([
             n_df[data.turb_timeseries_target_cols].values for n_df in node_ts_dfs]))
 
-    return WindFFGraph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
+    return Graph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
 
   @classmethod
   def __check_raw_data(cls, data: RawData):

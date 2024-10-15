@@ -1,3 +1,2 @@
-from .model import WindFFModelConfig, WindFFModel
-from .dataset import WindFFGraph, WindFFDataset
-from .model_manager import WindFFModelManager
+from .model import WindFFModelConfig, Model
+from .manager import ModelManager

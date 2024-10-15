@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import torch
 
 
 @dataclass
@@ -14,9 +15,29 @@ class PreprocessedDBConfig:
 
 
 @dataclass
+class PredictionDBConfig:
+  bucket: str
+  measurement: str
+
+
+@dataclass
+class ModelConfig:
+  feat_dim: int
+  target_dim: int
+  hidden_dim: int
+  input_win_sz: int
+  output_win_sz: int
+  hidden_win_sz: int
+  dtype: torch.dtype = torch.float64
+
+
+@dataclass
 class Config:
   raw_db: RawDBConfig
   preprocessed_db: PreprocessedDBConfig
+  result_db: PredictionDBConfig
+
+  model: ModelConfig
 
   preprocessor_url: str
   predictor_url: str

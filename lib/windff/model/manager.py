@@ -2,18 +2,18 @@ from dataclasses import dataclass
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
-from ..data.dataset import WindFFGraph, WindFFDataset
-from .model import WindFFModel, WindFFModelConfig
+from ..data.dataset import Graph, WindFFDataset
+from .model import Model, WindFFModelConfig
 import logging
 
 
-class WindFFModelManager:
+class ModelManager:
 
   DEFAULT_BATCH_SZ = 32
 
   def __init__(self, config: WindFFModelConfig):
     self.config = config
-    self.model: WindFFModel = WindFFModel(config)
+    self.model: Model = Model(config)
 
   @dataclass
   class TrainConfig:
@@ -26,7 +26,7 @@ class WindFFModelManager:
     batch_sz: int
     val_ratio: float
 
-  def train(self, graph_list: list[WindFFGraph], config: TrainConfig):
+  def train(self, graph_list: list[Graph], config: TrainConfig):
     '''Train a model from scratch
     '''
 
@@ -40,7 +40,7 @@ class WindFFModelManager:
 
     self.__check_graph(g)
 
-    self.model = WindFFModel(self.config).to(self.config.dtype)
+    self.model = Model(self.config).to(self.config.dtype)
     self.model = self.__init_model_params(self.model)
 
     feat, target = g.get_windowed_node_data_all(
@@ -111,7 +111,7 @@ class WindFFModelManager:
   def update(self):
     pass
 
-  def infer(self, g: WindFFGraph):
+  def infer(self, g: Graph):
     self.model.eval()
     with self.model.no_grad():
       self.__check_graph(g)
@@ -122,7 +122,7 @@ class WindFFModelManager:
       result = self.model(win_feat, w)
       return result
 
-  def evaluate(self, g: WindFFGraph) -> float:
+  def evaluate(self, g: Graph) -> float:
     self.__check_graph(g)
     feat, target = g.get_windowed_node_data_all(
         input_win_sz=self.config.input_win_sz,
@@ -144,7 +144,7 @@ class WindFFModelManager:
       loss = loss / len(loader)
       return loss
 
-  def __check_graph(self, g: WindFFGraph):
+  def __check_graph(self, g: Graph):
 
     feat = g.get_node_feat()  # (N, T, FEAT_DIM)
     target = g.get_node_target()  # (N, T, TARGET_DIM)
@@ -159,5 +159,5 @@ class WindFFModelManager:
       raise ValueError("Target dimension mismatch")
 
   # TODO: Initialize model parameters in a configurable way
-  def __init_model_params(self, model: WindFFModel) -> WindFFModel:
+  def __init_model_params(self, model: Model) -> Model:
     return model
