@@ -4,6 +4,8 @@ from ..config import InfluxDBClientConfig, FlaskServerConfig
 from influxdb_client.client.query_api import QueryApi
 from influxdb_client.client.write_api import WriteApi, SYNCHRONOUS
 from influxdb_client import InfluxDBClient
+import pandas as pd
+import numpy as np
 
 
 class DataPreprocessor(object):
@@ -22,8 +24,19 @@ class DataPreprocessor(object):
   def __init__(self, config: Config):
     self.config = config
 
-  def preprocess_turb_data(self):
-    pass
+  @classmethod
+  def preprocess_turb_data(cls, df: pd.DataFrame, time_start: np.datetime64, time_end: np.datetime64, time_interval: np.timedelta64) -> pd.DataFrame:
+    processed_dfs = []
+    for _, group in df.groupby("turb_id"):
+      group = group.set_index("timestamp").interpolate(
+          method="time").resample(time_interval).mean().fillna(0)
+      group = group.reindex(pd.date_range(
+          time_start, time_end, freq=time_interval)).fillna(method="ffill").fillna(method="bfill")
+      group = group.reset_index(drop=False)
+      processed_dfs.append(group)
+
+    df = pd.concat(processed_dfs).reset_index(drop=True)
+    return df
 
   def start(self):
     self.__start_influxdb_clients()
