@@ -10,13 +10,17 @@ class RawDBConfig:
 @dataclass
 class PreprocessedDBConfig:
   bucket: str
-  turb_ts_measurement: str # Turbine time series
+  turb_ts_measurement: str  # Turbine time series
 
 
 @dataclass
 class Config:
   raw_db: RawDBConfig
   preprocessed_db: PreprocessedDBConfig
+
+  preprocessor_url: str
+  predictor_url: str
+  trainer_url: str
 
 
 @dataclass
