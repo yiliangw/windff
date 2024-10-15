@@ -7,7 +7,7 @@ import influxdb_client as influxc
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 
-class DataCollector(object):
+class Collector(object):
 
   @dataclass
   class Config:

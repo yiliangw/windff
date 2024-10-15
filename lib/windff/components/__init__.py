@@ -1,2 +1,2 @@
-from .data_collector import DataCollector
+from .collector import Collector
 from .preprocessor import Preprocessor
