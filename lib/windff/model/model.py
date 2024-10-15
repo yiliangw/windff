@@ -111,7 +111,6 @@ class WindFFModel(nn.Module):
     '''
     @param feat: torch.tensor shape=(batch_sz/B, node_nb/N, input_win/I, feat_dim/D)
     '''
-   
 
     # Check input shape
     if len(feat.shape) == 4:

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
-from .dataset import WindFFGraph, WindFFDataset
+from ..data.dataset import WindFFGraph, WindFFDataset
 from .model import WindFFModel, WindFFModelConfig
 import logging
 
