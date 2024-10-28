@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from influxdb_client import Point as InfluxDBPoint
-from ..errors import WindffRawDataParsingError
+from ..errors import RawDataParsingError
 
 
 class RawTurbData(ABC):
