@@ -5,7 +5,7 @@ import logging
 from ..env import Env
 from .component import Component
 from ..data.raw import RawTurbData
-from ..errors import WindffDBError, WindffRawDataParsingError
+from ..errors import DBError, RawDataParsingError
 
 
 class Collector(Component):
@@ -23,25 +23,30 @@ class Collector(Component):
     self.env = env
     logging.info("Collector initialized.")
 
-  def __receive_turb_raw_data(self, data: RawTurbData):
-    try:
-      self.env.write_raw_turb_data(data)
-    except WindffDBError as e:
-      logging.warning("Ignored raw turbine data due to DB error.")
+  def handle_raw_turb_data_json(self, data_json: str):
+    '''
+    @throws RawDataParsingError: If the raw turbine data JSON is faulty
+    @throws DBError: If there is a DB error
+    '''
+    data = self.env.parse_raw_turb_data(data_json)
+    self.env.write_raw_turb_data(data)
 
   def __start_flask_server(self):
     self.server = Flask(__name__)
 
     @self.server.route("/raw_turb_data", methods=["POST"])
-    def handle_turb_raw_data():
+    def flask_handle_raw_turb_data():
       try:
-        data = self.config.turb_raw_dtype.from_json(request.data)
-        res = self.__receive_turb_raw_data(data)
-        if not res:
-          return jsonify({"error": "Error writing to InfluxDB"}), 500
-      except WindffRawDataParsingError as e:
-        logging.warning(f"Error parsing data: {str(e)}")
+        data_json = request.json
+        self.handle_raw_turb_data_json(data_json)
+        return jsonify({"status": "OK"}), 200
+      except RawDataParsingError as e:
+        logging.warning(
+            f"Discarded faulty raw turbine data: {data_json}, err: {str(e)}")
         return jsonify({"error": str(e)}), 400
+      except DBError as e:
+        logging.warning(f"Ignored raw turbine data due to DB error: {str(e)}")
+        return jsonify({"error": "DB error"}), 500
 
     self.server.run(host=self.config.listen_addr, port=self.config.listen_port)
 

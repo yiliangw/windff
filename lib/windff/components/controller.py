@@ -32,7 +32,7 @@ class Controller(Component):
     now = np.datetime64('now')
     target = np.datetime64(now + self.env.time_interval, np.datetime_data(
         self.env.time_interval))
-    res = self.__process(target)
+    res = self.process(target)
 
     if res == 0:
       next_tick = target + self.env.time_guard
@@ -45,7 +45,7 @@ class Controller(Component):
         'timedelta[s]').astype(float), self.__tick)
     logging.info("Scheduled next tick in %s seconds", delay)
 
-  def __process(self, target: np.datetime64):
+  def process(self, target: np.datetime64):
     # Ensure the time is aligned with interval
     time = np.datetime64(time, np.datetime_data(self.env.time_interval))
     time_start = time - self.env.time_interval * self.env.time_win_sz

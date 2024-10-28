@@ -13,7 +13,7 @@ import inspect
 
 from .config import Config
 from .components import Component, Controller, Collector, Preprocessor, Predictor
-from .errors import WindffDBError, WindffDBConnectionError
+from .errors import DBError, DBConnectionError
 from .data import RawTurbData
 
 
@@ -39,6 +39,8 @@ class Env:
 
     self.preprocess_retry_nb: int = 3
     self.predict_retry_nb: int = 3
+
+    self.raw_turb_data_dtype: type
 
     self.__influx_client: InfluxDBClient = None
     self.__influx_query_api: QueryApi = None
@@ -100,7 +102,7 @@ class Env:
       )
     except influxdb_client.client.InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise WindffDBError(inspect.currentframe(), err)
+      raise DBError(inspect.currentframe(), err)
 
   def query_raw_turb_data_df(self, time_start: np.datetime64, time_end: np.datetime64):
     self.__check_db_connection(DatabaseID.RAW)
@@ -115,7 +117,7 @@ class Env:
       df = self.__influx_query_api.query_data_frame(query)
     except influxdb_client.client.InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise WindffDBError(inspect.currentframe(), err)
+      raise DBError(inspect.currentframe(), err)
     df["timestamp"] = df.index
     df = df.reset_index(drop=True)
     return df
@@ -132,7 +134,7 @@ class Env:
       )
     except influxdb_client.client.InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise WindffDBError(inspect.currentframe(), err)
+      raise DBError(inspect.currentframe(), err)
 
   def query_preprocessed_turb_data_df(self, time_start: np.datetime64, time_end: np.datetime64):
     self.__check_db_connection(DatabaseID.PREPROCESSED)
@@ -147,7 +149,7 @@ class Env:
       df = self.__influx_query_api.query_data_frame(query)
     except influxdb_client.client.InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise WindffDBError(inspect.currentframe(), err)
+      raise DBError(inspect.currentframe(), err)
     df["timestamp"] = df.index
     df = df.reset_index(drop=True)
     return df
@@ -164,7 +166,7 @@ class Env:
       )
     except influxdb_client.client.InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise WindffDBError(inspect.currentframe(), err)
+      raise DBError(inspect.currentframe(), err)
 
   def query_predicted_data_df(self, time_start: np.datetime64, time_end: np.datetime64):
     self.__check_db_connection(DatabaseID.PREDICTED)
@@ -179,12 +181,15 @@ class Env:
       df = self.__influx_query_api.query_data_frame(query)
     except influxdb_client.client.InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise WindffDBError(inspect.currentframe(), err)
+      raise DBError(inspect.currentframe(), err)
     df["timestamp"] = df.index
     df = df.reset_index(drop=True)
     return df
 
+  def parse_raw_turb_data(self, data_json: str) -> RawTurbData:
+    return self.raw_turb_data_dtype.from_json(data_json)
+
   def __check_db_connection(self, db_id: DatabaseID):
     if db_id not in self.__connected_dbs:
       logging.error(f"Database {db_id} not connected")
-      raise WindffDBConnectionError(f"Database {db_id} not connected")
+      raise DBConnectionError(f"Database {db_id} not connected")
