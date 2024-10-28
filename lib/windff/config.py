@@ -15,9 +15,9 @@ class PreprocessedDBConfig:
 
 
 @dataclass
-class PredictionDBConfig:
+class PredictedDBConfig:
   bucket: str
-  measurement: str
+  turb_ts_measurement: str
 
 
 @dataclass
@@ -35,7 +35,7 @@ class ModelConfig:
 class Config:
   raw_db: RawDBConfig
   preprocessed_db: PreprocessedDBConfig
-  result_db: PredictionDBConfig
+  predicted_db: PredictedDBConfig
 
   model: ModelConfig
 

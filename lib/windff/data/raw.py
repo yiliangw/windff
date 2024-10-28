@@ -1,14 +1,10 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from influxdb_client import Point as InfluxDBPoint
+from ..errors import WindffRawDataParsingError
 
 
-class RawDataParsingError(Exception):
-  def __init__(self, str):
-    super().__init__(str)
-
-
-class TurbRawData(ABC):
+class RawTurbData(ABC):
 
   @abstractmethod
   def timestamp(self) -> datetime:
@@ -18,13 +14,13 @@ class TurbRawData(ABC):
   def turb_id(self) -> str:
     pass
 
-  @abstractmethod
   @classmethod
-  def from_json(json_str: str) -> 'TurbRawData':
+  @abstractmethod
+  def from_json(json_str: str) -> 'RawTurbData':
     """_summary_
 
     Raises:
-        DataParsingError: Error parsing JSON string
+        WindffRawDataParsingError: Error parsing JSON string
     """
     pass
 
