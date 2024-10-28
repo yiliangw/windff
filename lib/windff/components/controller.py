@@ -1,29 +1,76 @@
-from dataclasses import dataclass
 import numpy as np
-import xmlrpc.client
-from ..config import Config
+import threading
 import logging
 
+from .component import Component
+from ..env import Env
 
-class Controller(object):
 
-  def __init__(self, config: Config):
-    self.config = config
-    self.preprocessor_proxy = None
-    self.predictor_proxy = None
-    self.trainer_proxy = None
-    self.broadcaster_proxy = None
+class Controller(Component):
+
+  def __init__(self):
+    self.env: Env = None
     self.nodes: list[str] = []
+    self.timer: threading.Timer = None
 
-  def run(self):
-    self.data_preprocessor_proxy = xmlrpc.client.ServerProxy(
-        self.config.preprocessor_url)
+  @classmethod
+  def get_type(cls):
+    return Component.Type.CONTROLLER
 
-  def preprocess_data(self, time_start: np.datetime64, time_end: np.datetime64, interval: np.timedelta64):
-    try:
-      return self.data_preprocessor_proxy.preprocess_data(self.nodes,
-                                                          time_start, time_end, interval)
-    except xmlrpc.client.Fault as err:
-      logging.error("XML-RPC fault (preprocess_data): %d %s",
-                    err.faultCode, err.faultString)
-      return None
+  def initialize(self, env):
+    logging.info("Initializing controller...")
+    self.env = env
+    logging.info("Controller initialized.")
+
+  def start(self):
+    """Periodically call preprocess and predict"""
+    logging.info("Starting controller...")
+    self.__tick()
+    logging.info("Controller started.")
+
+  def __tick(self):
+    now = np.datetime64('now')
+    target = np.datetime64(now + self.env.time_interval, np.datetime_data(
+        self.env.time_interval))
+    res = self.__process(target)
+
+    if res == 0:
+      next_tick = target + self.env.time_guard
+    else:
+      next_tick = now + self.env.time_retry_interval
+    self.__schedule_tick(next_tick - now)
+
+  def __schedule_tick(self, delay: np.timedelta64):
+    self.timer = threading.Timer(delay.astype(
+        'timedelta[s]').astype(float), self.__tick)
+    logging.info("Scheduled next tick in %s seconds", delay)
+
+  def __process(self, target: np.datetime64):
+    # Ensure the time is aligned with interval
+    time = np.datetime64(time, np.datetime_data(self.env.time_interval))
+    time_start = time - self.env.time_interval * self.env.time_win_sz
+
+    for _ in range(self.env.preprocess_retry_nb):
+      res = self.__preprocess(time_start, target, self.env.time_interval)
+      if res == 0:
+        break
+    if res != 0:
+      logging.error(f"Preprocess failed for {target.isoformat()}")
+      return res
+
+    for _ in range(self.env.predict_retry_nb):
+      res = self.__predict(target)
+      if res == 0:
+        break
+    if res != 0:
+      logging.error(f"Predict failed for {target.isoformat()}")
+      return res
+
+    return 0
+
+  def __preprocess(self, time_start: np.datetime64, time_end: np.datetime64, interval: np.timedelta64):
+    self.env.call_preprocess(
+        self.nodes, time_start, time_end, interval)
+
+  def __predict(self, time: np.datetime64):
+    self.env.call_predict(time)
