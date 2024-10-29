@@ -1,8 +1,7 @@
-from ..windff.data.raw import RawTurbData
-from ..windff.errors import RawDataParsingError
+from ...windff.data.raw import RawTurbData
+from ...windff.errors import RawDataParsingError
 import json
 from influxdb_client import Point as InfluxDBPoint
-import pandas as pd
 import numpy as np
 
 

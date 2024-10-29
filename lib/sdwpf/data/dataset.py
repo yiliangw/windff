@@ -1,5 +1,4 @@
-from torch._C import dtype
-from ..windff import WindFFDataset
+from ...windff.data import WindFFDataset
 import os
 import pandas as pd
 from dataclasses import dataclass
