@@ -8,5 +8,12 @@ class Broadcaster(Component):
   def get_type(cls) -> str:
     return 'broadcaster'
 
-  def __init__(self, config: Config):
-    self.config = config
+  def __init__(self):
+    from ..env import Env
+    self.env: Env = None
+
+  def initialize(self, env):
+    self.env = env
+
+  def start(self):
+    pass

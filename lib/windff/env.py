@@ -13,7 +13,7 @@ import logging
 import inspect
 
 from .config import Config
-from .components import Component, Controller, Collector, Preprocessor, Predictor
+from .components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
 from .errors import DBConnectionError, DBWriteError, DBQueryError
 from .data import RawTurbData
 
@@ -25,6 +25,10 @@ class DatabaseID(Enum):
 
 
 class Env:
+
+  component_types = {
+      t.get_type(): t for t in [Controller, Collector, Preprocessor, Predictor, Broadcaster]
+  }
 
   def __init__(self, config: Config):
     self.config = config
@@ -44,7 +48,6 @@ class Env:
     self.preprocess_retry_nb: int = 3
     self.predict_retry_nb: int = 3
 
-
     self.raw_turb_data_dtype: type
 
     self.__influx_client: InfluxDBClient = None
@@ -54,10 +57,15 @@ class Env:
 
     self.__connected_dbs = set()
 
-  def spawn(self, type: Component.Type) -> Component:
+  def spawn(self, type: str) -> Component:
     '''Spawn a component of the given type
     '''
-    comp = Component.create(type)
+
+    t = self.component_types.get(type)
+    if t is None:
+      raise ValueError(f"Invalid component type: {type}")
+
+    comp = t()
     comp.initialize(self)
 
     type_list = self.components.get(type, [])
@@ -66,7 +74,7 @@ class Env:
 
     return comp
 
-  def get_components(self, type: Component.Type):
+  def get_components(self, type):
     '''Get the components of the given type
     '''
     return self.components.get(type, [])

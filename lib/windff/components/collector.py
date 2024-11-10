@@ -9,6 +9,7 @@ from ..errors import DBError, RawDataParsingError
 
 class Collector(Component):
 
+  @classmethod
   def get_type(cls):
     return 'collector'
 

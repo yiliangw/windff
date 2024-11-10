@@ -2,8 +2,7 @@ import numpy as np
 from dataclasses import dataclass
 
 from ...windff.components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
-from ...windff import Config as WindffConfig, Env as WindffEnv
-
+from ...windff import Config as WindFFConfig, Env
 
 from .turbine_edge import SDWPFTurbineEdge
 from .client import SDWPFClient
@@ -31,16 +30,17 @@ class SDWPFSimulation:
 
   def setup(self, config: Config):
 
-    config = Config()
-    env = Env(config)
+    self.config = config
+    self.env = Env(config)
 
-    self.contorller = env.spawn(Component.Type.CONTROLLER)
-    self.collector = env.spawn(Component.Type.COLLECTOR)
-    self.preprocessor = env.spawn(Component.Type.PREPROCESSOR)
-    self.predictor = env.spawn(Component.Type.PREDICTOR)
-    self.broadcaster = env.spawn(Component.Type.BROADCASTER)
+    self.contorller = self.env.spawn(Controller.get_type())
+    self.collector = self.env.spawn(Collector.get_type())
+    self.preprocessor = self.env.spawn(Preprocessor.get_type())
+    self.predictor = self.env.spawn(Predictor.get_type())
+    self.broadcaster = self.env.spawn(Broadcaster.get_type())
 
-    self.turbine_edges = SDWPFTurbineEdge.create_all()
+    self.turbine_edges = SDWPFTurbineEdge.create_all(
+        self.config.time_start, self.config.time_interval)
     self.client = SDWPFClient()
 
   def run(self):

@@ -53,3 +53,6 @@ class Predictor(Component):
       return Errno.DBQueryErr, str(e.raw)
     except DBWriteError as e:
       return Errno.DBWriteErr, str(e.raw)
+
+  def start(self):
+    pass
