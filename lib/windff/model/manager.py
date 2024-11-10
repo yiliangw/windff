@@ -158,6 +158,12 @@ class ModelManager:
     if target.shape[2] != self.config.target_dim:
       raise ValueError("Target dimension mismatch")
 
+  def get_model_params(self) -> dict:
+    return self.model.state_dict()
+
+  def load_model_params(self, params: dict):
+    self.model.load_state_dict(params)
+
   # TODO: Initialize model parameters in a configurable way
   def __init_model_params(self, model: Model) -> Model:
     return model

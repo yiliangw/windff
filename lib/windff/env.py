@@ -38,8 +38,12 @@ class Env:
     self.time_win_sz: int
     self.time_guard: np.timedelta64
 
+    self.turb_list: list[str]
+    self.edges: list[tuple[int, int, float]]
+
     self.preprocess_retry_nb: int = 3
     self.predict_retry_nb: int = 3
+
 
     self.raw_turb_data_dtype: type
 
@@ -204,3 +208,6 @@ class Env:
   def save_model_state_dict(self, time: np.datetime64, state_dict: dict):
     # TODO:
     pass
+
+  def align_time(self, time: np.datetime64) -> np.datetime64:
+    return np.datetime64(time, np.datetime_data(self.time_interval))

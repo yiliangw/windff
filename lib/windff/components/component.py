@@ -34,6 +34,11 @@ class Component(ABC):
       case _:
         raise ValueError(f"Unknown component type: {type}")
 
+  @classmethod
+  @abstractmethod
+  def get_type(cls) -> Type:
+    pass
+
   @abstractmethod
   def initialize(self, env: Env):
     pass
