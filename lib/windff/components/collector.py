@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 
 import logging
 
-from ..env import Env
 from .component import Component
 from ..data.raw import RawTurbData
 from ..errors import DBError, RawDataParsingError
@@ -11,9 +10,10 @@ from ..errors import DBError, RawDataParsingError
 class Collector(Component):
 
   def get_type(cls):
-    return Component.Type.COLLECTOR
+    return 'collector'
 
   def __init__(self):
+    from ..env import Env
     self.env: Env = None
 
     self.server: Flask = None

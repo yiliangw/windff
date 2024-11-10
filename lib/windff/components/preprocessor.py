@@ -5,7 +5,6 @@ import xmlrpc.server
 import logging
 
 from .component import Component
-from ..env import Env
 from ..errors import Errno, DBQueryError, DBWriteError
 
 
@@ -20,9 +19,10 @@ class Preprocessor(Component):
 
   @classmethod
   def get_type(cls):
-    return Component.Type.PREPROCESSOR
+    return 'preprocessor'
 
   def __init__(self):
+    from ..env import Env
     self.env: Env = None
     self.rpc_server = None
 

@@ -5,13 +5,17 @@ import pandas as pd
 from .component import Component
 from ..model import ModelManager
 from ..data.dataset import Graph
-from ..env import Env
 from ..errors import Errno, DBQueryError, DBWriteError
 
 
 class Predictor(Component):
 
+  @classmethod
+  def get_type(cls):
+    return "predictor"
+
   def __init__(self):
+    from ..env import Env
     self.env: Env = None
     self.manager: ModelManager = None
 

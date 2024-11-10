@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class WindFFModelConfig:
+class ModelConfig:
   feat_dim: int
   target_dim: int
   hidden_dim: int
@@ -68,7 +68,7 @@ class Model(nn.Module):
 
       return x
 
-  def __init__(self, config: WindFFModelConfig):
+  def __init__(self, config: ModelConfig):
 
     super(Model, self).__init__()
     # torch.set_default_dtype(config.dtype)

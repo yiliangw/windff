@@ -3,19 +3,19 @@ import threading
 import logging
 
 from .component import Component
-from ..env import Env
 
 
 class Controller(Component):
 
   def __init__(self):
+    from ..env import Env
     self.env: Env = None
     self.nodes: list[str] = []
     self.timer: threading.Timer = None
 
   @classmethod
   def get_type(cls):
-    return Component.Type.CONTROLLER
+    return 'controller'
 
   def initialize(self, env):
     logging.info("Initializing controller...")

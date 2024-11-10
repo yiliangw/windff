@@ -3,7 +3,7 @@ import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
 from ..data.dataset import Graph, WindFFDataset
-from .model import Model, WindFFModelConfig
+from .model import Model, ModelConfig
 import logging
 
 
@@ -11,7 +11,7 @@ class ModelManager:
 
   DEFAULT_BATCH_SZ = 32
 
-  def __init__(self, config: WindFFModelConfig):
+  def __init__(self, config: ModelConfig):
     self.config = config
     self.model: Model = Model(config)
 
