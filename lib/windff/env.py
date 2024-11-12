@@ -12,7 +12,7 @@ import pandas as pd
 import logging
 import inspect
 
-from .config import Config
+from .config import WinffConfig
 from .components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
 from .errors import DBConnectionError, DBWriteError, DBQueryError
 from .data import RawTurbData
@@ -24,13 +24,13 @@ class DatabaseID(Enum):
   PREDICTED = 3
 
 
-class Env:
+class WindffEnv:
 
   component_types = {
       t.get_type(): t for t in [Controller, Collector, Preprocessor, Predictor, Broadcaster]
   }
 
-  def __init__(self, config: Config):
+  def __init__(self, config: WinffConfig):
     self.config = config
     self.components = {}
 

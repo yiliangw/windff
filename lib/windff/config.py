@@ -32,7 +32,7 @@ class ModelConfig:
 
 
 @dataclass
-class Config:
+class WinffConfig:
   raw_db: RawDBConfig
   preprocessed_db: PreprocessedDBConfig
   predicted_db: PredictedDBConfig

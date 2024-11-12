@@ -2,18 +2,18 @@ from dataclasses import dataclass
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
-from ..data.dataset import Graph, WindFFDataset
-from .model import Model, ModelConfig
+from ..data.dataset import WindffGraph, WindffDataset
+from .model import WindffModel, WindffModelConfig
 import logging
 
 
-class ModelManager:
+class WindffModelManager:
 
   DEFAULT_BATCH_SZ = 32
 
-  def __init__(self, config: ModelConfig):
+  def __init__(self, config: WindffModelConfig):
     self.config = config
-    self.model: Model = Model(config)
+    self.model: WindffModel = WindffModel(config)
 
   @dataclass
   class TrainConfig:
@@ -26,7 +26,7 @@ class ModelManager:
     batch_sz: int
     val_ratio: float
 
-  def train(self, graph_list: list[Graph], config: TrainConfig):
+  def train(self, graph_list: list[WindffGraph], config: TrainConfig):
     '''Train a model from scratch
     '''
 
@@ -40,7 +40,7 @@ class ModelManager:
 
     self.__check_graph(g)
 
-    self.model = Model(self.config).to(self.config.dtype)
+    self.model = WindffModel(self.config).to(self.config.dtype)
     self.model = self.__init_model_params(self.model)
 
     feat, target = g.get_windowed_node_data_all(
@@ -111,7 +111,7 @@ class ModelManager:
   def update(self):
     pass
 
-  def infer(self, g: Graph):
+  def infer(self, g: WindffGraph):
     self.model.eval()
     with self.model.no_grad():
       self.__check_graph(g)
@@ -122,7 +122,7 @@ class ModelManager:
       result = self.model(win_feat, w)
       return result
 
-  def evaluate(self, g: Graph) -> float:
+  def evaluate(self, g: WindffGraph) -> float:
     self.__check_graph(g)
     feat, target = g.get_windowed_node_data_all(
         input_win_sz=self.config.input_win_sz,
@@ -144,7 +144,7 @@ class ModelManager:
       loss = loss / len(loader)
       return loss
 
-  def __check_graph(self, g: Graph):
+  def __check_graph(self, g: WindffGraph):
 
     feat = g.get_node_feat()  # (N, T, FEAT_DIM)
     target = g.get_node_target()  # (N, T, TARGET_DIM)
@@ -165,5 +165,5 @@ class ModelManager:
     self.model.load_state_dict(params)
 
   # TODO: Initialize model parameters in a configurable way
-  def __init_model_params(self, model: Model) -> Model:
+  def __init_model_params(self, model: WindffModel) -> WindffModel:
     return model

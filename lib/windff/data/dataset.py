@@ -9,7 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 
 
-class Graph(object):
+class WindffGraph(object):
   def __init__(self, node_nb: int, edges: list[tuple[int, int, float]], feat: torch.Tensor, target: torch.Tensor, dtype: torch.dtype):
     """
     Args:
@@ -102,11 +102,11 @@ class Graph(object):
     return self.g.nodes()
 
 
-class WindFFDataset(DGLDataset, ABC):
-  """General dataset for WindFF
+class WindffDataset(DGLDataset, ABC):
+  """General dataset for Windff
 
   Attributes:
-    g (WindFFGraph): The graph of the dataset.
+    g (WindffGraph): The graph of the dataset.
       g.ndata['feat'] stores the original node feature time series.
       g.ndata['target'] stores the original node target time series.
       g.edata['w'] store the edge weights.
@@ -119,7 +119,7 @@ class WindFFDataset(DGLDataset, ABC):
 
   @dataclass
   class RawData:
-    """Preprocessed data for WindFFDataset
+    """Preprocessed data for WindffDataset
 
     Attributes:
       turb_id_col: The values should have been preprocessed to index from 0
@@ -138,7 +138,7 @@ class WindFFDataset(DGLDataset, ABC):
     turb_timeseries_target_cols: list[str]
 
   def __init__(self, name: str = None):
-    self.graph_list: list[Graph] = []
+    self.graph_list: list[WindffGraph] = []
     self.meta = {
         "feat_dim": 0,
         "target_dim": 0
@@ -176,7 +176,7 @@ class WindFFDataset(DGLDataset, ABC):
     import pickle
     self.meta = pickle.load(open(meta_cache, "rb"))
 
-  def __getitem__(self, idx) -> Graph:
+  def __getitem__(self, idx) -> WindffGraph:
     if (idx >= len(self)):
       raise IndexError("Index out of bounds")
 
@@ -203,7 +203,7 @@ class WindFFDataset(DGLDataset, ABC):
     pass
 
   def _get_tensor_dtype(self) -> torch.dtype:
-    return WindFFDataset.DEFAULT_TENSOR_DTYPE
+    return WindffDataset.DEFAULT_TENSOR_DTYPE
 
   @abstractmethod
   def _get_raw_data(self, idx) -> RawData:
@@ -221,7 +221,7 @@ class WindFFDataset(DGLDataset, ABC):
   def get_target_dim(self) -> int:
     return self.meta["target_dim"]
 
-  def __process_idx(self, idx: int) -> Graph:
+  def __process_idx(self, idx: int) -> WindffGraph:
     data = self._get_raw_data(idx)
     self.__check_raw_data(data)
 
@@ -245,7 +245,7 @@ class WindFFDataset(DGLDataset, ABC):
         np.array([
             n_df[data.turb_timeseries_target_cols].values for n_df in node_ts_dfs]))
 
-    return Graph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
+    return WindffGraph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
 
   @classmethod
   def __check_raw_data(cls, data: RawData):

@@ -7,12 +7,12 @@ class Errno(Enum):
   DBWriteErr = 2
 
 
-class Error(Exception):
+class WindffError(Exception):
   def __init__(self, msg: str = None):
     super(msg)
 
 
-class DBError(Error):
+class DBError(WindffError):
   def __init__(self, msg: str = None):
     super(msg)
 
@@ -34,6 +34,6 @@ class DBConnectionError(DBError):
     super(msg)
 
 
-class RawDataParsingError(Error):
+class RawDataParsingError(WindffError):
   def __init__(self, msg: str = None):
     super(msg)

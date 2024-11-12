@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 
 from .component import Component
-from ..model import ModelManager
-from ..data.dataset import Graph
+from ..model import WindffModelManager
+from ..data.dataset import WindffGraph
 from ..errors import Errno, DBQueryError, DBWriteError
 
 
@@ -15,9 +15,9 @@ class Predictor(Component):
     return "predictor"
 
   def __init__(self):
-    from ..env import Env
-    self.env: Env = None
-    self.manager: ModelManager = None
+    from ..env import WindffEnv
+    self.env: WindffEnv = None
+    self.manager: WindffModelManager = None
 
   def initialize(self, env):
     self.env = env
@@ -35,10 +35,10 @@ class Predictor(Component):
 
     data = self.manager.pre
 
-    graph = Graph(len(self.env.turb_list), self.env.edges, turb_ts_df, None)
+    graph = WindffGraph(len(self.env.turb_list), self.env.edges, turb_ts_df, None)
     return graph
 
-  def __do_predict(self, g: Graph) -> pd.DataFrame:
+  def __do_predict(self, g: WindffGraph) -> pd.DataFrame:
     res = self.manager.infer(g)
 
   def predict(self, time: np.datetime64):

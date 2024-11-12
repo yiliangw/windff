@@ -2,7 +2,7 @@ import numpy as np
 from dataclasses import dataclass
 
 from ...windff.components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
-from ...windff import Config as WindFFConfig, Env
+from ...windff import WinffConfig, WindffEnv
 
 from .turbine_edge import SDWPFTurbineEdge
 from .client import SDWPFClient
@@ -31,7 +31,7 @@ class SDWPFSimulation:
   def setup(self, config: Config):
 
     self.config = config
-    self.env = Env(config)
+    self.env = WindffEnv(config)
 
     self.contorller = self.env.spawn(Controller.get_type())
     self.collector = self.env.spawn(Collector.get_type())

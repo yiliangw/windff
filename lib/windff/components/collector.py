@@ -14,8 +14,8 @@ class Collector(Component):
     return 'collector'
 
   def __init__(self):
-    from ..env import Env
-    self.env: Env = None
+    from ..env import WindffEnv
+    self.env: WindffEnv = None
 
     self.server: Flask = None
 

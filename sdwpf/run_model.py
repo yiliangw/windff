@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
 from lib.sdwpf import SDWPFDataset
-from lib.windff.model import ModelManager, ModelConfig
+from lib.windff.model import WindffModelManager, WindffModelConfig
 
 import torch
 import logging
@@ -31,7 +31,7 @@ def main():
 
   dataset = SDWPFDataset()
 
-  model_manager = ModelManager(ModelConfig(
+  model_manager = WindffModelManager(WindffModelConfig(
       feat_dim=dataset.get_feat_dim(),
       target_dim=dataset.get_target_dim(),
       hidden_dim=args.hidden_dim,

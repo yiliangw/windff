@@ -12,7 +12,7 @@ class Preprocessor(Component):
 
   PADDING_INTERVAL_NB = 3
 
-  """WindFF data preprocessor
+  """Windff data preprocessor
 
   Altogether there are two separate data preprocessing steps in the pipeline, and the data preprocessor only handle the first step. In this step, the data are processed so that the timestamps are aligned and the missing data are interpolated. The second step is handled by the model, where the transformations are applied to the data for the model input.
   """
@@ -22,8 +22,8 @@ class Preprocessor(Component):
     return 'preprocessor'
 
   def __init__(self):
-    from ..env import Env
-    self.env: Env = None
+    from ..env import WindffEnv
+    self.env: WindffEnv = None
     self.rpc_server = None
 
   def initialize(self, env):

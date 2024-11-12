@@ -1,11 +1,11 @@
-from ...windff.data import WindFFDataset
+from ...windff.data import WindffDataset
 import os
 import pandas as pd
 from dataclasses import dataclass
 import torch
 
 
-class SDWPFDataset(WindFFDataset):
+class SDWPFDataset(WindffDataset):
 
   COMPRESSED_ASSETS = os.path.join(os.path.dirname(__file__), "assets.tar.bz2")
   ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
@@ -66,7 +66,7 @@ class SDWPFDataset(WindFFDataset):
   def _get_tensor_dtype(self):
     return torch.float64
 
-  def __preprocess(self, raw_loc_df: pd.DataFrame, raw_ts_df: pd.DataFrame) -> WindFFDataset.RawData:
+  def __preprocess(self, raw_loc_df: pd.DataFrame, raw_ts_df: pd.DataFrame) -> WindffDataset.RawData:
 
     # Location
     loc_df = pd.DataFrame()
@@ -102,7 +102,7 @@ class SDWPFDataset(WindFFDataset):
     ts_df.ffill(inplace=True)
     ts_df.bfill(inplace=True)
 
-    return WindFFDataset.RawData(
+    return WindffDataset.RawData(
         turb_id_col='TurbID',
         time_col='Time',
 

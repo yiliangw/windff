@@ -1,2 +1,2 @@
-from .config import Config
-from .env import Env
+from .config import WinffConfig
+from .env import WindffEnv
