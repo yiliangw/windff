@@ -3,21 +3,23 @@ import torch
 
 
 @dataclass
-class RawDBConfig:
-  bucket: str
-  turb_measurement: str
+class InfluxDBConfig:
+  url: str
+  org: str
+  user: str
+  token: str
 
+  # Raw data
+  raw_data_bucket: str
+  raw_turb_ts_measurement: str
 
-@dataclass
-class PreprocessedDBConfig:
-  bucket: str
-  turb_ts_measurement: str  # Turbine time series
+  # Preprocessed data
+  preprocessed_data_bucket: str
+  preprocessed_turb_ts_measurement: str
 
-
-@dataclass
-class PredictedDBConfig:
-  bucket: str
-  turb_ts_measurement: str
+  # Predicted data
+  predicted_data_bucket: str
+  predicted_turb_ts_measurement: str
 
 
 @dataclass
@@ -33,23 +35,11 @@ class ModelConfig:
 
 @dataclass
 class WinffConfig:
-  raw_db: RawDBConfig
-  preprocessed_db: PreprocessedDBConfig
-  predicted_db: PredictedDBConfig
-
+  influx_db: InfluxDBConfig
   model: ModelConfig
 
   preprocessor_url: str
   predictor_url: str
-  trainer_url: str
-
-
-@dataclass
-class InfluxDBClientConfig:
-  url: str
-  token: str
-  turb_data_bucket: str
-  org: str
 
 
 @dataclass

@@ -1,23 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import dgl
 import dgl.function as fn
 from dgl import DGLGraph
 
 from dgl.nn import GraphConv
 from dataclasses import dataclass
 
-
-@dataclass
-class WindffModelConfig:
-  feat_dim: int
-  target_dim: int
-  hidden_dim: int
-  input_win_sz: int
-  output_win_sz: int
-  hidden_win_sz: int
-  dtype: torch.dtype = torch.float64
+from ..config import ModelConfig
 
 
 class WindffModel(nn.Module):
@@ -68,7 +58,7 @@ class WindffModel(nn.Module):
 
       return x
 
-  def __init__(self, config: WindffModelConfig):
+  def __init__(self, config: ModelConfig):
 
     super(WindffModel, self).__init__()
     # torch.set_default_dtype(config.dtype)
