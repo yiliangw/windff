@@ -1,8 +1,11 @@
+import numpy as np
+import math
+
 from ...windff.data.raw import RawTurbData
 from ...windff.errors import RawDataParsingError
 import json
 from influxdb_client import Point as InfluxDBPoint
-import numpy as np
+from influxdb_client.domain.write_precision import WritePrecision
 
 
 class SDWPFRawTurbData(RawTurbData):
@@ -59,7 +62,7 @@ class SDWPFRawTurbData(RawTurbData):
   def from_json(cls, json_str: str):
     try:
       d = json.loads(json_str)
-      timestamp = np.datetime64(d["timestamp"])
+      timestamp = np.datetime64(d["timestamp"], 's')
       turb_id = d["turb_id"]
       wspd = float(d["wspd"])
       wdir = float(d["wdir"])
@@ -77,22 +80,22 @@ class SDWPFRawTurbData(RawTurbData):
 
   def to_json(self):
     return json.dumps({
-        "timestamp": self.timestamp.isoformat(),
+        "timestamp": int(self.timestamp.astype('datetime64[s]').astype(int)),
         "turb_id": self.turb_id,
-        "wspd": self.wspd,
-        "wdir": self.wdir,
-        "etmp": self.etmp,
-        "itmp": self.itmp,
-        "ndir": self.ndir,
-        "pab1": self.pab1,
-        "pab2": self.pab2,
-        "pab3": self.pab3,
-        "prtv": self.prtv,
-        "patv": self.patv
+        "wspd": float(self.wspd),
+        "wdir": float(self.wdir),
+        "etmp": float(self.etmp),
+        "itmp": float(self.itmp),
+        "ndir": float(self.ndir),
+        "pab1": float(self.pab1),
+        "pab2": float(self.pab2),
+        "pab3": float(self.pab3),
+        "prtv": float(self.prtv),
+        "patv": float(self.patv)
     })
 
-  def to_influxdb_point(self) -> InfluxDBPoint:
-    return InfluxDBPoint("turb_raw_data") \
+  def to_influxdb_point(self, measurement: str) -> InfluxDBPoint:
+    return InfluxDBPoint(measurement) \
         .tag("turb_id", self.turb_id) \
         .field("wspd", self.wspd) \
         .field("wdir", self.wdir) \
@@ -104,4 +107,4 @@ class SDWPFRawTurbData(RawTurbData):
         .field("pab3", self.pab3) \
         .field("prtv", self.prtv) \
         .field("patv", self.patv) \
-        .time(self.timestamp)
+        .time(self.timestamp.astype('datetime64[s]').astype(int), write_precision=WritePrecision.S)

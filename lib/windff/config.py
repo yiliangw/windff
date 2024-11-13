@@ -1,5 +1,9 @@
 from dataclasses import dataclass
+from typing import Type
+
 import torch
+
+from .data.raw import RawTurbData
 
 
 @dataclass
@@ -34,9 +38,15 @@ class ModelConfig:
 
 
 @dataclass
-class WinffConfig:
+class TypeConfig:
+  raw_turb_data_type: Type[RawTurbData]
+
+
+@dataclass
+class Config:
   influx_db: InfluxDBConfig
   model: ModelConfig
+  type: TypeConfig
 
   preprocessor_url: str
   predictor_url: str

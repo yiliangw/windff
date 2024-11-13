@@ -8,8 +8,8 @@ from .component import Component
 class Controller(Component):
 
   def __init__(self):
-    from ..env import WindffEnv
-    self.env: WindffEnv = None
+    from ..env import Env
+    self.env: Env = None
     self.nodes: list[str] = []
     self.timer: threading.Timer = None
 

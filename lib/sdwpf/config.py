@@ -1,2 +1,2 @@
-from ..windff import WinffConfig
+from ..windff import Config
 

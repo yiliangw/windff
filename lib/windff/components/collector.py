@@ -4,6 +4,7 @@ import logging
 
 from .component import Component
 from ..data.raw import RawTurbData
+from ..data.database import DatabaseID
 from ..errors import DBError, RawDataParsingError
 
 
@@ -14,14 +15,15 @@ class Collector(Component):
     return 'collector'
 
   def __init__(self):
-    from ..env import WindffEnv
-    self.env: WindffEnv = None
+    from ..env import Env
+    self.env: Env = None
 
     self.server: Flask = None
 
   def initialize(self, env):
     logging.info("Initializing collector...")
     self.env = env
+    self.env.connect_db(DatabaseID.RAW)
     logging.info("Collector initialized.")
 
   def handle_raw_turb_data_json(self, data_json: str):

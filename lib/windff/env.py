@@ -1,6 +1,7 @@
 from enum import Enum
 
 import influxdb_client.client
+from influxdb_client.client.exceptions import InfluxDBError
 from influxdb_client.client.query_api import QueryApi
 from influxdb_client.client.write_api import WriteApi, SYNCHRONOUS
 from influxdb_client import InfluxDBClient
@@ -12,25 +13,22 @@ import pandas as pd
 import logging
 import inspect
 
-from .config import WinffConfig
+from .config import Config
 from .components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
 from .errors import DBConnectionError, DBWriteError, DBQueryError
 from .data import RawTurbData
+from .data.database import DatabaseID
 
 
-class DatabaseID(Enum):
-  RAW = 1
-  PREPROCESSED = 2
-  PREDICTED = 3
+class Env:
 
-
-class WindffEnv:
+  logger = logging.getLogger(__qualname__)
 
   component_types = {
       t.get_type(): t for t in [Controller, Collector, Preprocessor, Predictor, Broadcaster]
   }
 
-  def __init__(self, config: WinffConfig):
+  def __init__(self, config: Config):
     self.config = config
     self.components = {}
 
@@ -47,8 +45,6 @@ class WindffEnv:
 
     self.preprocess_retry_nb: int = 3
     self.predict_retry_nb: int = 3
-
-    self.raw_turb_data_dtype: type
 
     self.__influx_client: InfluxDBClient = None
     self.__influx_query_api: QueryApi = None
@@ -91,31 +87,40 @@ class WindffEnv:
     predictor: Predictor = comp_l[0]
     return predictor.predict(time)
 
-  def connect_db(self, id_list: list[DatabaseID]):
+  def connect_db(self, dbid: DatabaseID):
     if self.__influx_client is None:
       self.__influx_client = InfluxDBClient(
-          url=self.config.influxdb_config.url,
-          token=self.config.influxdb_config.token,
-          org=self.config.influxdb_config.org
+          url=self.config.influx_db.url,
+          token=self.config.influx_db.token,
+          org=self.config.influx_db.org
       )
-      self.__influx_query_api = QueryApi(client=self.__influx_client)
+      self.__influx_query_api = QueryApi(self.__influx_client)
       self.__influx_write_api = WriteApi(
-          client=self.__influx_client, write_options=SYNCHRONOUS
+          self.__influx_client, write_options=SYNCHRONOUS
       )
 
-    self.__connected_dbs += set(id_list)
+    self.__connected_dbs.add(dbid)
 
-  def write_raw_turb_data(self, dfdata: RawTurbData):
+  def write_raw_turb_data(self, data: RawTurbData):
+
+    self.logger.info(f"Writing raw turbine data: {data.to_json()}")
+
     self.__check_db_connection(DatabaseID.RAW)
+
+    p = data.to_influxdb_point(
+        self.config.influx_db.raw_turb_ts_measurement)
+
     try:
-      self.__influx_write_api.write(
-          bucket=self.config.raw_db.bucket,
-          record=dfdata.to_influxdb_point(),
-          data_frame_measurement_name=self.config.raw_db.turb_ts_measurement
+      res = self.__influx_write_api.write(
+          bucket=self.config.influx_db.raw_data_bucket,
+          org=self.config.influx_db.org,
+          record=p,
       )
-    except influxdb_client.client.InfluxDBError as err:
-      logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise DBWriteError(inspect.currentframe(), err)
+    except InfluxDBError as err:
+      logging.error(f"InfluxDB error ({str(inspect.currentframe())}): %s", err)
+      raise DBWriteError(str(inspect.currentframe), err)
+
+    return res
 
   def query_raw_turb_data_df(self, time_start: np.datetime64, time_end: np.datetime64):
     self.__check_db_connection(DatabaseID.RAW)
@@ -128,7 +133,7 @@ class WindffEnv:
     # Change time column to timestamp
     try:
       df = self.__influx_query_api.query_data_frame(query)
-    except influxdb_client.client.InfluxDBError as err:
+    except InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
       raise DBQueryError(inspect.currentframe(), err)
     df["timestamp"] = df.index
@@ -200,7 +205,7 @@ class WindffEnv:
     return df
 
   def parse_raw_turb_data(self, data_json: str) -> RawTurbData:
-    return self.raw_turb_data_dtype.from_json(data_json)
+    return self.config.type.raw_turb_data_type.from_json(data_json)
 
   def __check_db_connection(self, db_id: DatabaseID):
     if db_id not in self.__connected_dbs:

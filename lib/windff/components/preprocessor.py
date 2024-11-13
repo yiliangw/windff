@@ -22,8 +22,8 @@ class Preprocessor(Component):
     return 'preprocessor'
 
   def __init__(self):
-    from ..env import WindffEnv
-    self.env: WindffEnv = None
+    from ..env import Env
+    self.env: Env = None
     self.rpc_server = None
 
   def initialize(self, env):

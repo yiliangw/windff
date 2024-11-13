@@ -2,16 +2,21 @@ import numpy as np
 from dataclasses import dataclass
 
 from ...windff.components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
-from ...windff import WinffConfig, WindffEnv
+from ...windff.config import Config as WindffConfig, TypeConfig, InfluxDBConfig
+from ...windff.env import Env
 
 from .turbine_edge import SDWPFTurbineEdge
 from .client import SDWPFClient
+from ..data.raw import SDWPFRawTurbData
 
 
 class SDWPFSimulation:
 
   @dataclass
   class Config:
+
+    influx_db: InfluxDBConfig
+
     time_start: np.datetime64
     time_interval: np.timedelta64
     time_duration: np.timedelta64
@@ -19,6 +24,9 @@ class SDWPFSimulation:
   def __init__(self):
 
     self.time: np.datetime64 = None
+
+    self.config: self.Config = None
+    self.windff_config: WindffConfig = None
 
     self.controller: Controller = None
     self.collector: Collector = None
@@ -31,7 +39,17 @@ class SDWPFSimulation:
   def setup(self, config: Config):
 
     self.config = config
-    self.env = WindffEnv(config)
+
+    self.windff_config = WindffConfig(
+        influx_db=config.influx_db,
+        model=None,
+        type=TypeConfig(
+            raw_turb_data_type=SDWPFRawTurbData
+        ),
+        preprocessor_url=None,
+        predictor_url=None
+    )
+    self.env = Env(self.windff_config)
 
     self.contorller = self.env.spawn(Controller.get_type())
     self.collector = self.env.spawn(Collector.get_type())
@@ -53,5 +71,8 @@ class SDWPFSimulation:
       for edge in self.turbine_edges:
         raw_data_json = edge.get_raw_data_json(interval_nb)
         self.collector.handle_raw_turb_data_json(raw_data_json)
+
+      return
+      # self.collector.handle_raw_turb_data_json(raw_data_json)
 
     self.controller.process(self.time)

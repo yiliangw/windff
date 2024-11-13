@@ -29,5 +29,5 @@ class RawTurbData(ABC):
     pass
 
   @abstractmethod
-  def to_influxdb_point(self) -> InfluxDBPoint:
+  def to_influxdb_point(self, measurement: str) -> InfluxDBPoint:
     pass

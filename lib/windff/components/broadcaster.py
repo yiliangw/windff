@@ -1,4 +1,4 @@
-from .. import WinffConfig
+from .. import Config
 from .component import Component
 
 
@@ -9,8 +9,8 @@ class Broadcaster(Component):
     return 'broadcaster'
 
   def __init__(self):
-    from ..env import WindffEnv
-    self.env: WindffEnv = None
+    from ..env import Env
+    self.env: Env = None
 
   def initialize(self, env):
     self.env = env

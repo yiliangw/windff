@@ -3,13 +3,17 @@ import numpy as np
 import random
 import os
 
+import logging
+
 from ..data.raw import SDWPFRawTurbData
 
 
 class SDWPFTurbineEdge:
 
+  logger = logging.getLogger(__qualname__)
+
   CSV_PATH = os.path.join(os.path.dirname(
-      __file__), '../data/assets/timeseries_0.csv')
+      __file__), '../data/assets/timeseries_2.csv')
   TURB_NB = 134
 
   @classmethod
@@ -21,12 +25,14 @@ class SDWPFTurbineEdge:
 
     edges = []
     for i in range(1, cls.TURB_NB + 1):
-      edf = group.get_group(str(i)).reset_index(drop=True)
-      edf = edf.drop(columns=['TurbID', 'Day', 'Tmstamp'])
-      edf = edf.apply(pd.to_numeric, errors='coerce')
-      edges.append(SDWPFTurbineEdge(str(i), group, time_start, time_interval))
-    
-    return edges 
+      turb_df = group.get_group(str(i))
+      turb_df = turb_df.reset_index(drop=True)
+      turb_df = turb_df.drop(columns=['TurbID', 'Day', 'Tmstamp'])
+      turb_df = turb_df.apply(pd.to_numeric, errors='coerce')
+      edges.append(SDWPFTurbineEdge(
+          str(i), turb_df, time_start, time_interval))
+
+    return edges
 
   @classmethod
   def get_turb_nb(cls) -> int:
@@ -39,11 +45,16 @@ class SDWPFTurbineEdge:
     self.time_interval = time_interval
     self.random = random.Random(self.id)
 
-
   def get_raw_data_json(self, idx: int) -> str:
-    if idx >= len(self.data):
+    if idx >= len(self.df):
       return None
     row = self.df.iloc[idx]
     time = self.time_start + idx * self.time_interval + \
         self.time_interval * self.random.random()
-    return SDWPFRawTurbData(time, self.id, row['wspd'], row['wdir'], row['etmp'], row['itmp'], row['ndir'], row['pab1'], row['pab2'], row['pab3'], row['prtv'], row['patv']).to_json()
+
+    json_str = SDWPFRawTurbData(time, self.id, row['Wspd'], row['Wdir'], row['Etmp'], row['Itmp'],
+                                row['Ndir'], row['Pab1'], row['Pab2'], row['Pab3'], row['Prtv'], row['Patv']).to_json()
+
+    self.logger.info(f"[Turbine {self.id}]: {json_str}")
+
+    return json_str

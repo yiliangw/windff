@@ -1,2 +1,2 @@
-from .model import WindffModelConfig, WindffModel
-from .manager import WindffModelManager
+from .model import ModelConfig, Model
+from .manager import ModelManager

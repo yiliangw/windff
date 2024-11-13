@@ -9,7 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 
 
-class WindffGraph(object):
+class Graph(object):
   def __init__(self, node_nb: int, edges: list[tuple[int, int, float]], feat: torch.Tensor, target: torch.Tensor, dtype: torch.dtype):
     """
     Args:
@@ -102,7 +102,7 @@ class WindffGraph(object):
     return self.g.nodes()
 
 
-class WindffDataset(DGLDataset, ABC):
+class Dataset(DGLDataset, ABC):
   """General dataset for Windff
 
   Attributes:
@@ -138,7 +138,7 @@ class WindffDataset(DGLDataset, ABC):
     turb_timeseries_target_cols: list[str]
 
   def __init__(self, name: str = None):
-    self.graph_list: list[WindffGraph] = []
+    self.graph_list: list[Graph] = []
     self.meta = {
         "feat_dim": 0,
         "target_dim": 0
@@ -176,7 +176,7 @@ class WindffDataset(DGLDataset, ABC):
     import pickle
     self.meta = pickle.load(open(meta_cache, "rb"))
 
-  def __getitem__(self, idx) -> WindffGraph:
+  def __getitem__(self, idx) -> Graph:
     if (idx >= len(self)):
       raise IndexError("Index out of bounds")
 
@@ -203,7 +203,7 @@ class WindffDataset(DGLDataset, ABC):
     pass
 
   def _get_tensor_dtype(self) -> torch.dtype:
-    return WindffDataset.DEFAULT_TENSOR_DTYPE
+    return Dataset.DEFAULT_TENSOR_DTYPE
 
   @abstractmethod
   def _get_raw_data(self, idx) -> RawData:
@@ -221,7 +221,7 @@ class WindffDataset(DGLDataset, ABC):
   def get_target_dim(self) -> int:
     return self.meta["target_dim"]
 
-  def __process_idx(self, idx: int) -> WindffGraph:
+  def __process_idx(self, idx: int) -> Graph:
     data = self._get_raw_data(idx)
     self.__check_raw_data(data)
 
@@ -245,7 +245,7 @@ class WindffDataset(DGLDataset, ABC):
         np.array([
             n_df[data.turb_timeseries_target_cols].values for n_df in node_ts_dfs]))
 
-    return WindffGraph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
+    return Graph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
 
   @classmethod
   def __check_raw_data(cls, data: RawData):
