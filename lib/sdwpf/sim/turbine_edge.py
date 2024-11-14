@@ -49,7 +49,7 @@ class SDWPFTurbineEdge:
     if idx >= len(self.df):
       return None
     row = self.df.iloc[idx]
-    time = self.time_start + idx * self.time_interval + \
+    time = self.time_start + idx * self.time_interval - \
         self.time_interval * self.random.random()
 
     json_str = SDWPFRawTurbData(time, self.id, row['Wspd'], row['Wdir'], row['Etmp'], row['Itmp'],

@@ -107,4 +107,4 @@ class SDWPFRawTurbData(RawTurbData):
         .field("pab3", self.pab3) \
         .field("prtv", self.prtv) \
         .field("patv", self.patv) \
-        .time(self.timestamp.astype('datetime64[s]').astype(int), write_precision=WritePrecision.S)
+        .time(int(self.timestamp.astype('datetime64[s]').astype(int)), write_precision=WritePrecision.S)

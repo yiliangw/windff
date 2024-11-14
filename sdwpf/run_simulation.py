@@ -31,7 +31,7 @@ def main():
           predicted_data_bucket='windff_predicted',
           predicted_turb_ts_measurement='turb_ts'
       ),
-      time_start=np.datetime64('2024-11-10T17:00:00'),
+      time_start=np.datetime64('2024-11-10T17:00:00', 's'),
       time_interval=np.timedelta64(10, 'm'),
       time_duration=np.timedelta64(1, 'h')
   ))
