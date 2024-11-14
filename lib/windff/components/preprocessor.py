@@ -27,9 +27,10 @@ class Preprocessor(Component):
     self.rpc_server = None
 
   def initialize(self, env):
-    self.env: Env = env
+    self.env = env
 
-  def __do_preprocess_turb_data(self, turbs: list[str], df: pd.DataFrame, time_start: np.datetime64, time_end: np.datetime64, time_interval: np.timedelta64) -> pd.DataFrame:
+  def __do_preprocess_turb_data(self, turbs: list[str], df: pd.DataFrame, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int) -> pd.DataFrame:
+    time_end = time_start + time_interval * interval_nb
     processed_dfs = []
     processed_turbs = set()
     for t, group in df.groupby("turb_id"):
@@ -54,10 +55,12 @@ class Preprocessor(Component):
     df = pd.concat(processed_dfs).reset_index(drop=True)
     return df
 
-  def preprocess_turb_data(self, turbs: list[str], time_start: np.datetime64, time_end: np.datetime64, time_interval: np.timedelta64):
+  def preprocess_turb_data(self, turbs: list[str], time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
     try:
-      raw_df = self.env.query_raw_turb_data_df(time_start, time_end)
-      processed_df = self.__do_preprocess_turb_data(raw_df)
+      raw_df = self.env.query_raw_turb_data_df(
+          time_start, time_interval, interval_nb)
+      processed_df = self.__do_preprocess_turb_data(
+          turbs, raw_df, time_start, time_interval, interval_nb)
       self.env.write_preprocessed_turb_data_df(processed_df)
       return Errno.OK, "Ok"
     except DBQueryError as e:
@@ -65,8 +68,8 @@ class Preprocessor(Component):
     except DBWriteError as e:
       return Errno.DBWriteErr, str(e.raw)
 
-  def preprocess(self, turbs: set[str], time_start: np.datetime64, time_end: np.datetime64, time_interval: np.timedelta64):
-    return self.preprocess_turb_data(turbs, time_start, time_end, time_interval)
+  def preprocess(self, turbs: set[str], time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
+    return self.preprocess_turb_data(turbs, time_start, time_interval, interval_nb)
 
   def start(self):
     self.__start_xmlrpc_server()

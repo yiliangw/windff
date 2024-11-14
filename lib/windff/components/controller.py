@@ -47,30 +47,19 @@ class Controller(Component):
 
   def process(self, target: np.datetime64):
     # Ensure the time is aligned with interval
-    time = np.datetime64(time, np.datetime_data(self.env.time_interval))
+    time = np.datetime64(target, np.datetime_data(
+        self.env.time_interval))
     time_start = time - self.env.time_interval * self.env.time_win_sz
 
     for _ in range(self.env.preprocess_retry_nb):
-      res = self.__preprocess(time_start, target, self.env.time_interval)
-      if res == 0:
-        break
-    if res != 0:
-      logging.error(f"Preprocess failed for {target.isoformat()}")
-      return res
-
-    for _ in range(self.env.predict_retry_nb):
-      res = self.__predict(target)
-      if res == 0:
-        break
-    if res != 0:
-      logging.error(f"Predict failed for {target.isoformat()}")
-      return res
-
-    return 0
+      try:
+        self.__preprocess(time_start, target, self.env.time_interval)
+      except Exception as e:
+        logging.error(f"Preprocess failed for {target}: {e}")
 
   def __preprocess(self, time_start: np.datetime64, time_end: np.datetime64, interval: np.timedelta64):
     self.env.call_preprocess(
-        self.nodes, time_start, time_end, interval)
+        self.nodes, time_start, interval, self.env.config.model.input_win_sz)
 
   def __predict(self, time: np.datetime64):
     self.env.call_predict(time)

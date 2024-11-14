@@ -2,21 +2,20 @@ import numpy as np
 from dataclasses import dataclass
 
 from ...windff.components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
-from ...windff.config import Config as WindffConfig, TypeConfig, InfluxDBConfig
+from ...windff.config import Config as WindffConfig, TypeConfig, InfluxDBConfig, ModelConfig
 from ...windff.env import Env
 
 from .turbine_edge import SDWPFTurbineEdge
 from .client import SDWPFClient
 from ..data.raw import SDWPFRawTurbData
+from ..data.dataset import SDWPFDataset
 
 
 class SDWPFSimulation:
 
   @dataclass
   class Config:
-
     influx_db: InfluxDBConfig
-
     time_start: np.datetime64
     time_interval: np.timedelta64
     time_duration: np.timedelta64
@@ -38,20 +37,32 @@ class SDWPFSimulation:
 
   def setup(self, config: Config):
 
+    dataset = SDWPFDataset()
+
     self.config = config
 
     self.windff_config = WindffConfig(
         influx_db=config.influx_db,
-        model=None,
+        model=ModelConfig(
+            feat_dim=dataset.get_feat_dim(),
+            target_dim=dataset.get_target_dim(),
+            hidden_dim=64,
+            input_win_sz=6 * 24,  # 1 day
+            output_win_sz=6 * 2,  # 2 hours
+            hidden_win_sz=6 * 12
+        ),
         type=TypeConfig(
             raw_turb_data_type=SDWPFRawTurbData
         ),
+
+        time_interval=config.time_interval,
+
         preprocessor_url=None,
         predictor_url=None
     )
     self.env = Env(self.windff_config)
 
-    self.contorller = self.env.spawn(Controller.get_type())
+    self.controller = self.env.spawn(Controller.get_type())
     self.collector = self.env.spawn(Collector.get_type())
     self.preprocessor = self.env.spawn(Preprocessor.get_type())
     self.predictor = self.env.spawn(Predictor.get_type())
@@ -65,14 +76,18 @@ class SDWPFSimulation:
     self.time = self.config.time_start
 
     time_stop = self.config.time_start + self.config.time_duration
-    interval_nb = 0
+
+    interval_nb = 1
+    self.time += self.config.time_interval
 
     while self.time <= time_stop:
       for edge in self.turbine_edges:
         raw_data_json = edge.get_raw_data_json(interval_nb)
         self.collector.handle_raw_turb_data_json(raw_data_json)
 
-      return
-      # self.collector.handle_raw_turb_data_json(raw_data_json)
+      self.controller.process(self.time)
 
-    self.controller.process(self.time)
+      self.time += self.config.time_interval
+      interval_nb += 1
+
+      return

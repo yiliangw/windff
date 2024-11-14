@@ -35,11 +35,6 @@ class Env:
     self.time_col: str = 'timestamp'
     self.turb_col: str = 'turb_id'
 
-    self.time_interval: np.timedelta64
-    self.time_retry_interval: np.timedelta64
-    self.time_win_sz: int
-    self.time_guard: np.timedelta64
-
     self.turb_list: list[str]
     self.edges: list[tuple[int, int, float]]
 
@@ -70,16 +65,24 @@ class Env:
 
     return comp
 
+  @property
+  def time_interval(self):
+    return self.config.time_interval
+
+  @property
+  def time_win_sz(self):
+    return self.config.model.input_win_sz
+
   def get_components(self, type):
     '''Get the components of the given type
     '''
     return self.components.get(type, [])
 
-  def call_preprocess(self, turbs: set[str], time_start: np.datetime64, time_end: np.datetime64, time_interval: np.timedelta64):
-    comp_l = self.get_components(Component.Type.PREPROCESSOR)
+  def call_preprocess(self, turbs: set[str], time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
+    comp_l = self.get_components(Preprocessor.get_type())
     assert len(comp_l) > 0
     preprocessor: Preprocessor = comp_l[0]
-    return preprocessor.preprocess(turbs, time_start, time_end, time_interval)
+    return preprocessor.preprocess(turbs, time_start, time_interval, interval_nb)
 
   def call_predict(self, time: np.datetime64):
     comp_l = self.get_components(Component.Type.PREDICTOR)
@@ -122,14 +125,21 @@ class Env:
 
     return res
 
-  def query_raw_turb_data_df(self, time_start: np.datetime64, time_end: np.datetime64):
+  def query_raw_turb_data_df(self, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
     self.__check_db_connection(DatabaseID.RAW)
-    query = f'''
-    from(bucket: "{self.config.raw_db.bucket}")
-      |> range(start: {time_start}, stop: {time_end})
-      |> filter(fn: (r) => r["_measurement"] == "{self.config.raw_db.turb_ts_measurement}")
-      |> yield()
-    '''
+
+    time_end = time_start + time_interval * interval_nb
+
+    start_timestamp_s = time_start.astype('datetime64[s]').astype('int')
+    end_timestamp_s = time_end.astype('datetime64[s]').astype('int')
+    interval_s = time_interval.astype('timedelta64[s]').astype('int')
+
+    query = f'from (bucket: "{self.config.influx_db.raw_data_bucket}")\
+    |> range(start: {start_timestamp_s}, stop: {end_timestamp_s})\
+    |> filter(fn: (r)=> r["_measurement"] == "{self.config.influx_db.raw_turb_ts_measurement}")\
+    |> aggregateWindow(every: {interval_s}s, fn: mean)\
+    |> pivot(rowKey:["_time", "{self.turb_col}"], columnKey: ["_field"], valueColumn: "_value")'
+
     # Change time column to timestamp
     try:
       df = self.__influx_query_api.query_data_frame(query)

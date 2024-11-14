@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Type
 
 import torch
+import numpy as np
 
 from .data.raw import RawTurbData
 
@@ -47,6 +48,8 @@ class Config:
   influx_db: InfluxDBConfig
   model: ModelConfig
   type: TypeConfig
+
+  time_interval: np.timedelta64 
 
   preprocessor_url: str
   predictor_url: str
