@@ -37,8 +37,14 @@ class Env:
 
     self.config.type.raw_turb_data_type.init(self.time_col, self.turb_col)
 
-    self.turb_list: list[str]
-    self.edges: list[tuple[int, int, float]]
+    from ..sdwpf.data.dataset import SDWPFDataset
+
+    # WARNING: Hardcoded for now
+    sdwpf = SDWPFDataset()[1]
+    self.turb_list: list[str] = sdwpf.nodes
+    self.turb_loc_df: pd.DataFrame = pd.read_csv(SDWPFDataset.LOCATION_CSV)
+    self.turb_loc_df[self.turb_col] = self.turb_loc_df['TurbID'].astype(str)
+    self.turb_loc_df = self.turb_loc_df.drop(columns=['TurbID'])
 
     self.preprocess_retry_nb: int = 3
     self.predict_retry_nb: int = 3
@@ -80,14 +86,14 @@ class Env:
     '''
     return self.components.get(type, [])
 
-  def call_preprocess(self, turbs: set[str], time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
+  def call_preprocess(self, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
     comp_l = self.get_components(Preprocessor.get_type())
     assert len(comp_l) > 0
     preprocessor: Preprocessor = comp_l[0]
-    return preprocessor.preprocess(turbs, time_start, time_interval, interval_nb)
+    return preprocessor.preprocess(time_start, time_interval, interval_nb)
 
   def call_predict(self, time: np.datetime64):
-    comp_l = self.get_components(Component.Type.PREDICTOR)
+    comp_l = self.get_components(Predictor.get_type())
     assert len(comp_l) > 0
     predictor: Predictor = comp_l[0]
     return predictor.predict(time)
@@ -168,6 +174,44 @@ class Env:
 
     return df
 
+  def query_preprocessed_turb_data_df(self, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
+    time_end = time_start + time_interval * interval_nb
+
+    start_timestamp_s = time_start.astype('datetime64[s]').astype('int')
+    end_timestamp_s = time_end.astype('datetime64[s]').astype('int')
+    interval_s = time_interval.astype('timedelta64[s]').astype('int')
+
+    query = f'from (bucket: "{self.config.influx_db.preprocessed_data_bucket}")\
+    |> range(start: {start_timestamp_s}, stop: {end_timestamp_s})\
+    |> filter(fn: (r)=> r["_measurement"] == "{self.config.influx_db.preprocessed_turb_ts_measurement}")\
+    |> aggregateWindow(every: {interval_s}s, fn: mean)\
+    |> pivot(rowKey:["_time", "{self.turb_col}"], columnKey: ["_field"], valueColumn: "_value")\
+    |> keep(columns: ["_time", "{self.turb_col}"'
+
+    for col in self.config.type.raw_turb_data_type.get_col_names():
+      query += f', "{col}"'
+
+    query += ']) |> yield()'
+
+    try:
+      df = self.__influx_query_api.query_data_frame(query)
+    except InfluxDBError as err:
+      logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
+      raise DBQueryError(inspect.currentframe(), err)
+
+    df = df.rename(columns={'_time': self.time_col})
+    df[self.time_col] = pd.to_datetime(df[self.time_col], unit='s')
+    df[self.turb_col] = df[self.turb_col].astype(str)
+
+    df = df.drop(columns=['result', 'table'])
+    df = df.reset_index(drop=True)
+
+    for col in df.columns:
+      if col != self.time_col and col != self.turb_col:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    return df
+
   def write_preprocessed_turb_data_df(self, df: pd.DataFrame):
     self.__check_db_connection(DatabaseID.PREPROCESSED)
     df = df.set_index(self.time_col)
@@ -181,24 +225,6 @@ class Env:
     except InfluxDBClient as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
       raise DBWriteError(inspect.currentframe(), err)
-
-  def query_preprocessed_turb_data_df(self, time_start: np.datetime64, time_end: np.datetime64):
-    self.__check_db_connection(DatabaseID.PREPROCESSED)
-    query = f'''
-    from(bucket: "{self.config.preprocessed_db.bucket}")
-      |> range(start: {time_start}, stop: {time_end})
-      |> filter(fn: (r) => r["_measurement"] == "{self.config.preprocessed_db.turb_ts_measurement}")
-      |> yield()
-    '''
-    # Change time column to timestamp
-    try:
-      df = self.__influx_query_api.query_data_frame(query)
-    except influxdb_client.client.InfluxDBError as err:
-      logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise DBQueryError(inspect.currentframe(), err)
-    df["timestamp"] = df.index
-    df = df.reset_index(drop=True)
-    return df
 
   def write_predicted_data_df(self, df: pd.DataFrame):
     self.__check_db_connection(DatabaseID.PREDICTED)

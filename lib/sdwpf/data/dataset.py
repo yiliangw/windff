@@ -70,8 +70,7 @@ class SDWPFDataset(Dataset):
 
     # Location
     loc_df = pd.DataFrame()
-    loc_df['TurbID'] = raw_loc_df['TurbID'].astype(
-        pd.UInt32Dtype()) - 1
+    loc_df['TurbID'] = raw_loc_df['TurbID'].astype(str)
     loc_df['x'] = raw_loc_df['x'].astype(pd.Float32Dtype())
     loc_df['y'] = raw_loc_df['y'].astype(pd.Float32Dtype())
 
@@ -79,7 +78,7 @@ class SDWPFDataset(Dataset):
     ts_df = pd.DataFrame()
 
     # Turbine ID
-    ts_df['TurbID'] = raw_ts_df['TurbID'].astype(pd.UInt32Dtype()) - 1
+    ts_df['TurbID'] = raw_ts_df['TurbID'].astype(str)
 
     # Time
     days = raw_ts_df['Day'].astype(pd.UInt32Dtype())
@@ -98,7 +97,7 @@ class SDWPFDataset(Dataset):
         ts_df[f] = raw_ts_df[f].apply(pd.to_numeric, errors='coerce')
 
     # Interpolate missing values
-    ts_df.interpolate(method='linear', inplace=True)
+    ts_df.infer_objects(copy=False).interpolate(method='linear', inplace=True)
     ts_df.ffill(inplace=True)
     ts_df.bfill(inplace=True)
 

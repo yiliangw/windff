@@ -34,7 +34,10 @@ class Preprocessor(Component):
     self.env.connect_db(DatabaseID.PREPROCESSED)
 
   def __do_preprocess_turb_data(self, turbs: list[str], df: pd.DataFrame, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int) -> pd.DataFrame:
-    time_end = time_start + time_interval * interval_nb
+
+    df[self.env.turb_col] = df[self.env.turb_col].astype(str)
+
+    time_end = time_start + time_interval * (interval_nb - 1)
 
     interval_str = f"{time_interval.astype('timedelta64[s]').astype(int)}s"
 
@@ -45,7 +48,7 @@ class Preprocessor(Component):
       gdf = g.get_group(k).reset_index(drop=True)
       gdf = gdf.drop(columns=[self.env.turb_col])
 
-      gdf = gdf.set_index("timestamp").interpolate(
+      gdf = gdf.set_index(self.env.time_col).interpolate(
           method="linear")
       gdf = gdf.resample(interval_str).mean()
       gdf = gdf.reindex(pd.date_range(time_start, time_end,
@@ -56,17 +59,19 @@ class Preprocessor(Component):
       gdf[self.env.turb_col] = k
       processed_dfs.append(gdf)
 
-    for t in set(turbs) - set(g.groups.keys()):
+    for t in turbs:
+      if t in g.groups.keys():
+        continue
       gdf = pd.DataFrame(columns=df.columns)
-      # Change the column type to match the original data
-      gdf["timestamp"] = pd.date_range(
-          time_start, time_end, freq=time_interval)
-      gdf["turb_id"] = t
       gdf = gdf.astype(df.dtypes.to_dict())
-      gdf = gdf.fillna(0)
+      # Change the column type to match the original data
+      gdf[self.env.time_col] = pd.date_range(
+          time_start, time_end, freq=interval_str)
+      gdf[self.env.turb_col] = t
       processed_dfs.append(gdf)
 
     df = pd.concat(processed_dfs).reset_index(drop=True)
+    df = df.fillna(0.0)
     return df
 
   def preprocess_turb_data(self, turbs: list[str], time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
@@ -82,8 +87,8 @@ class Preprocessor(Component):
     except DBWriteError as e:
       return Errno.DBWriteErr, str(e.raw)
 
-  def preprocess(self, turbs: set[str], time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
-    return self.preprocess_turb_data(turbs, time_start, time_interval, interval_nb)
+  def preprocess(self, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
+    return self.preprocess_turb_data(self.env.turb_list, time_start, time_interval, interval_nb)
 
   def start(self):
     self.__start_xmlrpc_server()

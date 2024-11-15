@@ -20,7 +20,7 @@ def main():
           url='http://localhost:8086',
           org='windff',
           user='windff',
-          token='NYxAQe-aOhyUCw81HlS98MBkj1QfPVy8NDxCKlrvAaNsvB00nlU_6EzCINQUfTBx1_HLxM4WKWE4QFJiOiab8g==',
+          token='ILWXcDGuMhLBxr0LaeJodwyzFN3dIJhSM6jBZJ8ph37LtxdpevpBFu1ypD-MEmnSrHPyh6a_SSzFAl6JTUxhbA==',
 
           raw_data_bucket='windff_raw',
           raw_turb_ts_measurement='turb_ts',

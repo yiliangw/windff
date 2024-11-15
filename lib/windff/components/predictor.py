@@ -4,7 +4,7 @@ import pandas as pd
 
 from .component import Component
 from ..model import ModelManager
-from ..data.dataset import Graph
+from ..data.dataset import Graph, Dataset
 from ..errors import Errno, DBQueryError, DBWriteError
 
 
@@ -31,11 +31,21 @@ class Predictor(Component):
     time_start = time_stop - self.env.time_interval * self.env.time_win_sz
 
     turb_ts_df = self.env.query_preprocessed_turb_data_df(
-        time_start, time_stop)
+        time_start, self.env.time_interval, self.env.time_win_sz)
 
-    data = self.manager.pre
+    turb_ts_df = turb_ts_df.ffill().bfill().fillna(0.0)
 
-    graph = Graph(len(self.env.turb_list), self.env.edges, turb_ts_df, None)
+    raw_data = Dataset.RawData(
+        turb_id_col=self.env.turb_col,
+        time_col=self.env.time_col,
+
+        turb_location_df=self.env.turb_loc_df,
+        turb_timeseries_df=turb_ts_df,
+        turb_timeseries_target_cols=self.env.config.type.raw_turb_data_type.get_target_col_names(),
+    )
+
+    graph = Dataset.process_raw_data(raw_data)
+
     return graph
 
   def __do_predict(self, g: Graph) -> pd.DataFrame:

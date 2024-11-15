@@ -10,7 +10,6 @@ class Controller(Component):
   def __init__(self):
     from ..env import Env
     self.env: Env = None
-    self.nodes: list[str] = []
     self.timer: threading.Timer = None
 
   @classmethod
@@ -53,13 +52,21 @@ class Controller(Component):
 
     for _ in range(self.env.preprocess_retry_nb):
       try:
-        self.__preprocess(time_start, target, self.env.time_interval)
+        self.__preprocess(target)
       except Exception as e:
         logging.error(f"Preprocess failed for {target}: {e}")
 
-  def __preprocess(self, time_start: np.datetime64, time_end: np.datetime64, interval: np.timedelta64):
+    for _ in range(self.env.predict_retry_nb):
+      try:
+        self.__predict(target)
+        return 0
+      except Exception as e:
+        logging.error(f"Predict failed for {target}: {e}")
+
+  def __preprocess(self, target: np.datetime64):
+    time_start = target - self.env.time_interval * self.env.time_win_sz
     self.env.call_preprocess(
-        self.nodes, time_start, interval, self.env.config.model.input_win_sz)
+        time_start, self.env.time_interval, self.env.config.model.input_win_sz)
 
   def __predict(self, time: np.datetime64):
     self.env.call_predict(time)

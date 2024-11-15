@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 
 
 class Graph(object):
-  def __init__(self, node_nb: int, edges: list[tuple[int, int, float]], feat: torch.Tensor, target: torch.Tensor, dtype: torch.dtype):
+  def __init__(self, nodes: list[str], edges: list[tuple[int, int, float]], feat: torch.Tensor, target: torch.Tensor, dtype: torch.dtype):
     """
     Args:
         edges (list[tuple[int, int, float]]): (u, v, dist) for every edge
@@ -18,6 +18,9 @@ class Graph(object):
     """
     if torch.isnan(feat).any():
       raise ValueError("Input feature contains NaN")
+
+    self._edges = edges
+    self._nodes = nodes
 
     u_list = torch.tensor([u for u, _, _ in edges], dtype=torch.int64)
     v_list = torch.tensor([v for _, v, _ in edges], dtype=torch.int64)
@@ -27,16 +30,16 @@ class Graph(object):
     if torch.isnan(dist_list).any():
       raise ValueError("Edge distance contains NaN")
 
-    if max(u_list) >= node_nb or max(v_list) >= node_nb or min(u_list) < 0 or min(v_list) < 0:
+    if max(u_list) >= len(nodes) or max(v_list) >= len(nodes) or min(u_list) < 0 or min(v_list) < 0:
       raise ValueError("The edge contains nodes that are out of bounds")
-    if len(feat) != node_nb:
+    if len(feat) != len(nodes):
       raise ValueError(
           "The number of nodes in the feature tensor is not consistent")
-    if len(target) != node_nb:
+    if len(target) != len(nodes):
       raise ValueError(
           "The number of nodes in the target tensor is not consistent")
 
-    self.g = dgl.graph((u_list, v_list), num_nodes=node_nb)
+    self.g = dgl.graph((u_list, v_list), num_nodes=len(nodes))
 
     self.__node_feat = feat.to(dtype)
     self.__node_target = target.to(dtype)
@@ -98,8 +101,13 @@ class Graph(object):
   def get_edge_dist(self) -> torch.Tensor:
     return self.__edge_dist
 
-  def get_nodes(self) -> torch.Tensor:
-    return self.g.nodes()
+  @property
+  def nodes(self):
+    return self._nodes
+
+  @property
+  def edges(self):
+    return self._edges
 
 
 class Dataset(DGLDataset, ABC):
@@ -202,8 +210,9 @@ class Dataset(DGLDataset, ABC):
   def __len__(self):
     pass
 
-  def _get_tensor_dtype(self) -> torch.dtype:
-    return Dataset.DEFAULT_TENSOR_DTYPE
+  @classmethod
+  def _get_tensor_dtype(cls) -> torch.dtype:
+    return cls.DEFAULT_TENSOR_DTYPE
 
   @abstractmethod
   def _get_raw_data(self, idx) -> RawData:
@@ -223,19 +232,21 @@ class Dataset(DGLDataset, ABC):
 
   def __process_idx(self, idx: int) -> Graph:
     data = self._get_raw_data(idx)
-    self.__check_raw_data(data)
+    return self.process_raw_data(data, dtype=self._get_tensor_dtype())
 
-    node_nb, edges = self.__get_topology(data)
+  @classmethod
+  def process_raw_data(cls, data: RawData, dtype=DEFAULT_TENSOR_DTYPE) -> Graph:
+
+    cls.__check_raw_data(data)
+    nodes, edges = cls.__get_topology(data)
 
     grouped_ts_df = data.turb_timeseries_df.groupby(data.turb_id_col)
 
     node_ts_dfs = [grouped_ts_df.get_group(node).sort_values(
-        by=data.time_col, ascending=True) for node in range(node_nb)]
+        by=data.time_col, ascending=True) for node in nodes]
 
     feat_cols = list(set(data.turb_timeseries_df.columns) -
                      {data.turb_id_col, data.time_col, *data.turb_timeseries_target_cols})
-
-    dtype = self._get_tensor_dtype()
 
     # (node_nb, time, feat_dim)
     feat_series_tensor = torch.tensor(
@@ -245,7 +256,7 @@ class Dataset(DGLDataset, ABC):
         np.array([
             n_df[data.turb_timeseries_target_cols].values for n_df in node_ts_dfs]))
 
-    return Graph(node_nb, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
+    return Graph(nodes, edges, feat_series_tensor, target_series_tensor, dtype=dtype)
 
   @classmethod
   def __check_raw_data(cls, data: RawData):
@@ -254,7 +265,7 @@ class Dataset(DGLDataset, ABC):
     timecol = data.time_col
 
     nodes = data.turb_location_df[turbcol].unique()
-    if len(nodes) != len(data.turb_location_df) or min(nodes) != 0 or max(nodes) != len(nodes) - 1:
+    if len(nodes) != len(data.turb_location_df):
       raise ValueError("Node ID")
 
     # turbine_location_df
@@ -262,14 +273,12 @@ class Dataset(DGLDataset, ABC):
       raise ValueError()
     if len(data.turb_location_df.columns) != 3:
       raise ValueError()
+    if data.turb_location_df.isnull().values.any():
+      raise ValueError("turbine_location_df has NaN values")
 
     # turbine_timeseries_df
     if not {turbcol, timecol, *data.turb_timeseries_target_cols} < set(data.turb_timeseries_df.columns):
       raise ValueError()
-
-    # Check whether there are NaN values
-    if data.turb_location_df.isnull().values.any():
-      raise ValueError("turbine_location_df has NaN values")
     if data.turb_timeseries_df.isnull().values.any():
       raise ValueError("turbine_timeseries_df has NaN values")
 
@@ -277,8 +286,7 @@ class Dataset(DGLDataset, ABC):
   def __get_topology(cls, data: RawData) -> tuple[int, list[tuple[int, int, float]]]:
     df = data.turb_location_df
     idcol = data.turb_id_col
-    nodes = df[idcol].unique()
-    if len(nodes) != len(df) or min(nodes) != 0 or max(nodes) != len(nodes) - 1:
+    if len(df[idcol].unique()) != len(df):
       raise ValueError("turbine_location_df")
 
     coordcols = list(set(df.columns) - {idcol})
@@ -286,17 +294,16 @@ class Dataset(DGLDataset, ABC):
       raise ValueError("turbine_location_df")
 
     edges = []
+    nodes = [df[idcol][i] for i in range(len(df))]
 
     for i in range(len(df)):
       for j in range(i + 1, len(df)):
-        ni = df[idcol][i]
-        nj = df[idcol][j]
 
         coordi = df.iloc[i][coordcols]
         coordj = df.iloc[j][coordcols]
         dist = np.sqrt(np.sum(np.square(coordi - coordj)))
 
-        edges.append((ni, nj, dist))
-        edges.append((nj, ni, dist))
+        edges.append((i, j, dist))
+        edges.append((j, i, dist))
 
-    return len(nodes), edges
+    return nodes, edges

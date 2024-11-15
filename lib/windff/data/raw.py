@@ -28,8 +28,14 @@ class RawTurbData(ABC):
   @abstractmethod
   def get_col_names(self) -> list[str]:
     '''
-    Return:
-      List of column names except for the timestamp and turbine ID columns
+    @return List of column names except for the timestamp and turbine ID columns
+    '''
+    pass
+
+  @classmethod
+  def get_target_col_names(self):
+    '''
+    @return List of target column names
     '''
     pass
 

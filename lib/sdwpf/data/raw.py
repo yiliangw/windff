@@ -112,3 +112,7 @@ class SDWPFRawTurbData(RawTurbData):
   @classmethod
   def get_col_names(self):
     return ["wspd", "wdir", "etmp", "itmp", "ndir", "pab1", "pab2", "pab3", "prtv", "patv"]
+
+  @classmethod
+  def get_target_col_names(self):
+    return ['patv']
