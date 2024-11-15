@@ -7,6 +7,7 @@ import logging
 from .component import Component
 from ..errors import Errno, DBQueryError, DBWriteError
 from ..data.database import DatabaseID
+from ..utils import Utils
 
 
 class Preprocessor(Component):
@@ -39,7 +40,7 @@ class Preprocessor(Component):
 
     time_end = time_start + time_interval * (interval_nb - 1)
 
-    interval_str = f"{time_interval.astype('timedelta64[s]').astype(int)}s"
+    interval_str = f"{Utils.td_to_sec(time_interval)}s"
 
     processed_dfs = []
 

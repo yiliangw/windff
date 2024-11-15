@@ -18,6 +18,7 @@ from .components import Component, Controller, Collector, Preprocessor, Predicto
 from .errors import DBConnectionError, DBWriteError, DBQueryError
 from .data import RawTurbData
 from .data.database import DatabaseID
+from .utils import Utils
 
 
 class Env:
@@ -138,14 +139,10 @@ class Env:
 
     time_end = time_start + time_interval * interval_nb
 
-    start_timestamp_s = time_start.astype('datetime64[s]').astype('int')
-    end_timestamp_s = time_end.astype('datetime64[s]').astype('int')
-    interval_s = time_interval.astype('timedelta64[s]').astype('int')
-
     query = f'from (bucket: "{self.config.influx_db.raw_data_bucket}")\
-    |> range(start: {start_timestamp_s}, stop: {end_timestamp_s})\
+    |> range(start: {Utils.dt_to_sec(time_start)}, stop: {Utils.dt_to_sec(time_end)})\
     |> filter(fn: (r)=> r["_measurement"] == "{self.config.influx_db.raw_turb_ts_measurement}")\
-    |> aggregateWindow(every: {interval_s}s, fn: mean)\
+    |> aggregateWindow(every: {Utils.td_to_sec(time_interval)}s, fn: mean)\
     |> pivot(rowKey:["_time", "{self.turb_col}"], columnKey: ["_field"], valueColumn: "_value")\
     |> keep(columns: ["_time", "{self.turb_col}"'
 
@@ -177,14 +174,10 @@ class Env:
   def query_preprocessed_turb_data_df(self, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int):
     time_end = time_start + time_interval * interval_nb
 
-    start_timestamp_s = time_start.astype('datetime64[s]').astype('int')
-    end_timestamp_s = time_end.astype('datetime64[s]').astype('int')
-    interval_s = time_interval.astype('timedelta64[s]').astype('int')
-
     query = f'from (bucket: "{self.config.influx_db.preprocessed_data_bucket}")\
-    |> range(start: {start_timestamp_s}, stop: {end_timestamp_s})\
+    |> range(start: {Utils.dt_to_sec(time_start)}, stop: {Utils.dt_to_sec(time_end)})\
     |> filter(fn: (r)=> r["_measurement"] == "{self.config.influx_db.preprocessed_turb_ts_measurement}")\
-    |> aggregateWindow(every: {interval_s}s, fn: mean)\
+    |> aggregateWindow(every: {Utils.td_to_sec(time_interval)}s, fn: mean)\
     |> pivot(rowKey:["_time", "{self.turb_col}"], columnKey: ["_field"], valueColumn: "_value")\
     |> keep(columns: ["_time", "{self.turb_col}"'
 
@@ -228,13 +221,13 @@ class Env:
 
   def write_predicted_data_df(self, df: pd.DataFrame):
     self.__check_db_connection(DatabaseID.PREDICTED)
+    df = df.set_index(self.time_col)
     try:
       self.__influx_write_api.write(
-          bucket=self.config.predicted.bucket,
+          bucket=self.config.influx_db.predicted_data_bucket,
           record=df,
-          data_frame_measurement_name=self.config.predicted_db.turb_ts_measurement,
+          data_frame_measurement_name=self.config.influx_db.predicted_turb_ts_measurement,
           data_frame_tag_columns=[self.turb_col],
-          data_frame_time_column=self.time_col
       )
     except influxdb_client.client.InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)

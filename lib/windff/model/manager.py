@@ -12,7 +12,7 @@ class ModelManager:
   DEFAULT_BATCH_SZ = 32
 
   def __init__(self, config: ModelConfig):
-    self.config = config
+    self.config: ModelConfig = config
     self.model: Model = Model(config)
 
   @dataclass
@@ -36,7 +36,7 @@ class ModelManager:
           "Training on multiple graphs is not supported yet, only the first graph is used")
 
     g = graph_list[0]
-    dglg = g.get_dgl_graph()
+    dglg = g.dgl_graph
 
     self.__check_graph(g)
 
@@ -113,13 +113,12 @@ class ModelManager:
 
   def infer(self, g: Graph):
     self.model.eval()
-    with self.model.no_grad():
+    with torch.no_grad():
       self.__check_graph(g)
       # Get the last feature window
-      win_feat = g.get_windowed_node_feat(
-          -self.config.input_win_sz, self.config.input_win_sz)
+      win_feat = g.get_last_windowed_node_feat(self.config.input_win_sz)
       w = g.get_normalized_edge_weight(self.config.adj_weight_threshold)
-      result = self.model(win_feat, w)
+      result = self.model(g.dgl_graph, win_feat, w)
       return result
 
   def evaluate(self, g: Graph) -> float:
@@ -139,7 +138,7 @@ class ModelManager:
       for batch in loader:
         batch_feat, batch_target = batch
         w = g.get_normalized_edge_weight(self.config.adj_weight_threshold)
-        pred = self.model(batch_feat, w)
+        pred = self.model(g.dgl_graph, batch_feat, w)
         loss += criterion(pred, batch_target).item()
       loss = loss / len(loader)
       return loss

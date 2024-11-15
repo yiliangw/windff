@@ -86,14 +86,8 @@ class SDWPFDataset(Dataset):
     ts_df['Time'] = tmstamp.map(self.time_dict) + \
         (days - days.min()) * len(self.time_dict)
 
-    # Targets and features
-    for t in self.TARGETS:
-      ts_df[t] = raw_ts_df[t].apply(pd.to_numeric, errors='coerce')
-      # Also copy the targets features and do preprocessing later
-      ts_df[f'{t}_feat'] = ts_df[t]
-
     for f in raw_ts_df.columns:
-      if f not in {'TurbID', 'Day', 'Tmstamp', *self.config.discard_features, *self.TARGETS}:
+      if f not in {'TurbID', 'Day', 'Tmstamp', *self.config.discard_features}:
         ts_df[f] = raw_ts_df[f].apply(pd.to_numeric, errors='coerce')
 
     # Interpolate missing values

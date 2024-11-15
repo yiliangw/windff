@@ -59,6 +59,14 @@ class Graph(object):
 
     return win_feat, win_target
 
+  def get_last_windowed_node_feat(self, input_win_sz: int) -> torch.Tensor:
+    feat = self.get_node_feat()
+    if input_win_sz > feat.shape[1]:
+      raise ValueError("The requested window is out of bounds")
+    # (node_nb, input_win_sz, feat_dim)
+    win_feat = feat[:, -input_win_sz:]
+    return win_feat
+
   def get_windowed_node_feat(self, win_start: int, input_win_sz: int) -> torch.Tensor:
     feat = self.get_node_feat()
     if win_start + input_win_sz > feat.shape[1]:
@@ -89,7 +97,8 @@ class Graph(object):
       weights = np.where(weights > adj_weight_threshold, weights, 0)
     return torch.tensor(weights)
 
-  def get_dgl_graph(self) -> DGLGraph:
+  @property
+  def dgl_graph(self) -> DGLGraph:
     return self.g
 
   def get_node_feat(self) -> torch.Tensor:
@@ -123,7 +132,7 @@ class Dataset(DGLDataset, ABC):
 
   """
 
-  DEFAULT_TENSOR_DTYPE = torch.float32
+  DEFAULT_TENSOR_DTYPE = torch.float64
 
   @dataclass
   class RawData:
@@ -239,6 +248,11 @@ class Dataset(DGLDataset, ABC):
 
     cls.__check_raw_data(data)
     nodes, edges = cls.__get_topology(data)
+
+    turb_ts_df = data.turb_timeseries_df
+    # Also copy targets as features for later preprocessing
+    for col in data.turb_timeseries_target_cols:
+      turb_ts_df[f'{col}_feat'] = turb_ts_df[col]
 
     grouped_ts_df = data.turb_timeseries_df.groupby(data.turb_id_col)
 

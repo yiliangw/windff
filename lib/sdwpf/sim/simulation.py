@@ -49,7 +49,8 @@ class SDWPFSimulation:
             hidden_dim=64,
             input_win_sz=6 * 24,  # 1 day
             output_win_sz=6 * 2,  # 2 hours
-            hidden_win_sz=6 * 12
+            hidden_win_sz=6 * 12,
+            adj_weight_threshold=0.8
         ),
         type=TypeConfig(
             raw_turb_data_type=SDWPFRawTurbData

@@ -35,6 +35,7 @@ class ModelConfig:
   input_win_sz: int
   output_win_sz: int
   hidden_win_sz: int
+  adj_weight_threshold: float
   dtype: torch.dtype = torch.float64
 
 
@@ -49,7 +50,7 @@ class Config:
   model: ModelConfig
   type: TypeConfig
 
-  time_interval: np.timedelta64 
+  time_interval: np.timedelta64
 
   preprocessor_url: str
   predictor_url: str
