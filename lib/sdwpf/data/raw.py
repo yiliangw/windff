@@ -80,8 +80,8 @@ class SDWPFRawTurbData(RawTurbData):
 
   def to_json(self):
     return json.dumps({
-        "timestamp": int(self.timestamp.astype('datetime64[s]').astype(int)),
-        "turb_id": self.turb_id,
+        self.TIME_COL: int(self.timestamp.astype('datetime64[s]').astype(int)),
+        self.TURB_COL: self.turb_id,
         "wspd": float(self.wspd),
         "wdir": float(self.wdir),
         "etmp": float(self.etmp),
@@ -96,7 +96,7 @@ class SDWPFRawTurbData(RawTurbData):
 
   def to_influxdb_point(self, measurement: str) -> InfluxDBPoint:
     return InfluxDBPoint(measurement) \
-        .tag("turb_id", self.turb_id) \
+        .tag(self.TURB_COL, self.turb_id) \
         .field("wspd", self.wspd) \
         .field("wdir", self.wdir) \
         .field("etmp", self.etmp) \
@@ -108,3 +108,7 @@ class SDWPFRawTurbData(RawTurbData):
         .field("prtv", self.prtv) \
         .field("patv", self.patv) \
         .time(int(self.timestamp.astype('datetime64[s]').astype(int)), write_precision=WritePrecision.S)
+
+  @classmethod
+  def get_col_names(self):
+    return ["wspd", "wdir", "etmp", "itmp", "ndir", "pab1", "pab2", "pab3", "prtv", "patv"]

@@ -6,13 +6,13 @@ from ..errors import RawDataParsingError
 
 class RawTurbData(ABC):
 
-  @abstractmethod
-  def timestamp(self) -> datetime:
-    pass
+  TIME_COL: str = None
+  TURB_COL: str = None
 
-  @abstractmethod
-  def turb_id(self) -> str:
-    pass
+  @classmethod
+  def init(cls, time_col: str, turb_col: str):
+    cls.TIME_COL = time_col
+    cls.TURB_COL = turb_col
 
   @classmethod
   @abstractmethod
@@ -22,6 +22,15 @@ class RawTurbData(ABC):
     Raises:
         WindffRawDataParsingError: Error parsing JSON string
     """
+    pass
+
+  @classmethod
+  @abstractmethod
+  def get_col_names(self) -> list[str]:
+    '''
+    Return:
+      List of column names except for the timestamp and turbine ID columns
+    '''
     pass
 
   @abstractmethod

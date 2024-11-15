@@ -35,6 +35,8 @@ class Env:
     self.time_col: str = 'timestamp'
     self.turb_col: str = 'turb_id'
 
+    self.config.type.raw_turb_data_type.init(self.time_col, self.turb_col)
+
     self.turb_list: list[str]
     self.edges: list[tuple[int, int, float]]
 
@@ -138,7 +140,13 @@ class Env:
     |> range(start: {start_timestamp_s}, stop: {end_timestamp_s})\
     |> filter(fn: (r)=> r["_measurement"] == "{self.config.influx_db.raw_turb_ts_measurement}")\
     |> aggregateWindow(every: {interval_s}s, fn: mean)\
-    |> pivot(rowKey:["_time", "{self.turb_col}"], columnKey: ["_field"], valueColumn: "_value")'
+    |> pivot(rowKey:["_time", "{self.turb_col}"], columnKey: ["_field"], valueColumn: "_value")\
+    |> keep(columns: ["_time", "{self.turb_col}"'
+
+    for col in self.config.type.raw_turb_data_type.get_col_names():
+      query += f', "{col}"'
+
+    query += ']) |> yield()'
 
     # Change time column to timestamp
     try:
@@ -146,7 +154,8 @@ class Env:
     except InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
       raise DBQueryError(inspect.currentframe(), err)
-    df["timestamp"] = df.index
+    df = df.rename(columns={'_time': self.time_col})
+    df = df.drop(columns=['result', 'table'])
     df = df.reset_index(drop=True)
     return df
 

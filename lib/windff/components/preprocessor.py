@@ -32,25 +32,27 @@ class Preprocessor(Component):
   def __do_preprocess_turb_data(self, turbs: list[str], df: pd.DataFrame, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int) -> pd.DataFrame:
     time_end = time_start + time_interval * interval_nb
     processed_dfs = []
-    processed_turbs = set()
-    for t, group in df.groupby("turb_id"):
-      group = group.set_index("timestamp").interpolate(
-          method="time").resample(time_interval).mean().fillna(0)
-      group = group.reindex(pd.date_range(
-          time_start, time_end, freq=time_interval)).fillna(method="ffill").fillna(method="bfill")
-      group = group.reset_index(drop=False)
-      processed_dfs.append(group)
-      processed_turbs.add(t)
 
-    for t in set(turbs) - processed_turbs:
-      group = pd.DataFrame(columns=df.columns)
+    g = df.groupby(self.env.turb_col)
+    for k in g.groups.keys():
+      gdf = g.get_group(k).reset_index(drop=True)
+
+      gdf = gdf.set_index("timestamp").interpolate(
+          method="time").resample(time_interval).mean().fillna(0)
+      gdf = gdf.reindex(pd.date_range(
+          time_start, time_end, freq=time_interval)).fillna(method="ffill").fillna(method="bfill")
+      gdf = gdf.reset_index(drop=False)
+      processed_dfs.append(gdf)
+
+    for t in set(turbs) - set(g.groups.keys()):
+      gdf = pd.DataFrame(columns=df.columns)
       # Change the column type to match the original data
-      group["timestamp"] = pd.date_range(
+      gdf["timestamp"] = pd.date_range(
           time_start, time_end, freq=time_interval)
-      group["turb_id"] = t
-      group = group.astype(df.dtypes.to_dict())
-      group = group.fillna(0)
-      processed_dfs.append(group)
+      gdf["turb_id"] = t
+      gdf = gdf.astype(df.dtypes.to_dict())
+      gdf = gdf.fillna(0)
+      processed_dfs.append(gdf)
 
     df = pd.concat(processed_dfs).reset_index(drop=True)
     return df
