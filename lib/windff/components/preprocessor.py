@@ -6,6 +6,7 @@ import logging
 
 from .component import Component
 from ..errors import Errno, DBQueryError, DBWriteError
+from ..data.database import DatabaseID
 
 
 class Preprocessor(Component):
@@ -29,19 +30,30 @@ class Preprocessor(Component):
   def initialize(self, env):
     self.env = env
 
+    self.env.connect_db(DatabaseID.RAW)
+    self.env.connect_db(DatabaseID.PREPROCESSED)
+
   def __do_preprocess_turb_data(self, turbs: list[str], df: pd.DataFrame, time_start: np.datetime64, time_interval: np.timedelta64, interval_nb: int) -> pd.DataFrame:
     time_end = time_start + time_interval * interval_nb
+
+    interval_str = f"{time_interval.astype('timedelta64[s]').astype(int)}s"
+
     processed_dfs = []
 
     g = df.groupby(self.env.turb_col)
     for k in g.groups.keys():
       gdf = g.get_group(k).reset_index(drop=True)
+      gdf = gdf.drop(columns=[self.env.turb_col])
 
       gdf = gdf.set_index("timestamp").interpolate(
-          method="time").resample(time_interval).mean().fillna(0)
-      gdf = gdf.reindex(pd.date_range(
-          time_start, time_end, freq=time_interval)).fillna(method="ffill").fillna(method="bfill")
-      gdf = gdf.reset_index(drop=False)
+          method="linear")
+      gdf = gdf.resample(interval_str).mean()
+      gdf = gdf.reindex(pd.date_range(time_start, time_end,
+                        freq=interval_str)).ffill().bfill().fillna(0.0)
+
+      gdf.index.name = self.env.time_col
+      gdf = gdf.reset_index()
+      gdf[self.env.turb_col] = k
       processed_dfs.append(gdf)
 
     for t in set(turbs) - set(g.groups.keys()):

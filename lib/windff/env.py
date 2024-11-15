@@ -154,22 +154,31 @@ class Env:
     except InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
       raise DBQueryError(inspect.currentframe(), err)
+
     df = df.rename(columns={'_time': self.time_col})
+    df[self.time_col] = pd.to_datetime(df[self.time_col], unit='s')
+    df[self.turb_col] = df[self.turb_col].astype(str)
+
     df = df.drop(columns=['result', 'table'])
     df = df.reset_index(drop=True)
+
+    for col in df.columns:
+      if col != self.time_col and col != self.turb_col:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
     return df
 
   def write_preprocessed_turb_data_df(self, df: pd.DataFrame):
     self.__check_db_connection(DatabaseID.PREPROCESSED)
+    df = df.set_index(self.time_col)
     try:
       self.__influx_write_api.write(
-          bucket=self.config.preprocessed_db.bucket,
+          bucket=self.config.influx_db.preprocessed_data_bucket,
           record=df,
-          data_frame_measurement_name=self.config.preprocessed_db.turb_ts_measurement,
+          data_frame_measurement_name=self.config.influx_db.preprocessed_turb_ts_measurement,
           data_frame_tag_columns=[self.turb_col],
-          data_frame_time_column=self.time_col
       )
-    except influxdb_client.client.InfluxDBError as err:
+    except InfluxDBClient as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
       raise DBWriteError(inspect.currentframe(), err)
 
