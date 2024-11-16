@@ -72,10 +72,10 @@ class Env:
 
     return comp
 
-  def start_services(self, collector_port: int, broadcaster_port: int):
-    self.collector_server = Flask(f'{__name__}/collector')
+  def start_services(self, port: int):
+    self.flask_server = Flask(f'{__name__}')
 
-    @self.collector_server.route("/raw_turb_data", methods=["POST"])
+    @self.flask_server.route("/raw_turb_data", methods=["POST"])
     def handle_raw_turbine_data():
       try:
         data_json = request.json
@@ -95,11 +95,7 @@ class Env:
 
       return jsonify({"status": "OK"}), 200
 
-    self.collector_server.run(host='0.0.0.0', port=collector_port)
-
-    self.broadcaster_server = Flask(f'{__name__}/broadcaster')
-
-    @self.broadcaster_server.route("/query", methods=["GET"])
+    @self.flask_server.route("/query", methods=["GET"])
     def handle_query():
       query_json = request.json
       try:
@@ -111,7 +107,7 @@ class Env:
 
       return jsonify(resp), 200
 
-    self.broadcaster_server.run(host='0.0.0.0', port=broadcaster_port)
+    self.flask_server.run(host='0.0.0.0', port=port)
 
   def get_component(self, type: str) -> Component:
     comp_l = self.get_components(type)
