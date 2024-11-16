@@ -7,8 +7,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
-from lib.sdwpf.sim import SDWPFTurbineEdge
-from lib.sdwpf.data import SDWPFRawTurbData
+from lib.sdwpf.sim import SDWPFClient
 
 port = 18181
 
@@ -16,23 +15,20 @@ time_start = np.datetime64('2024-11-10T17:00:00', 's')
 time_interval = np.timedelta64(10, 'm')
 time_duration = np.timedelta64(1, 'h')
 
-SDWPFTurbineEdge.logger.setLevel(logging.INFO)
-turbine_edges = SDWPFTurbineEdge.create_all(time_start, time_interval)
+SDWPFClient.logger.setLevel(logging.INFO)
+client = SDWPFClient()
 
-url = f'http://localhost:{port}/raw_turb_data'
+url = f'http://localhost:{port}/query'
 
 interval_cnt = 1
 current_time = time_start + time_interval
 
-SDWPFRawTurbData.init('timestamp', 'turb_id')
-
 
 def handler(signum, frame):
   global interval_cnt, current_time
-  print(f'Sending raw data at {current_time}')
-  for e in turbine_edges:
-    e.send_raw_data(interval_cnt, url)
-  print(f'Sent raw data at {current_time}')
+  print(f'Sending query at {current_time}')
+  client.send_query(current_time, current_time + time_interval, url)
+  print(f'Sent query at {current_time}')
   interval_cnt += 1
   current_time += time_interval
 

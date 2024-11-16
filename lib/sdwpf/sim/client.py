@@ -1,4 +1,5 @@
 import numpy as np
+import requests
 
 import logging
 
@@ -16,3 +17,9 @@ class SDWPFClient:
         'time_stop': np.datetime_as_string(time_stop, unit='s')
     }
     return query
+
+  def send_query(self, time_start: np.datetime64, time_stop: np.datetime64, url: str):
+    query = self.create_query(time_start, time_stop)
+    resp = requests.get(url, json=query)
+
+    self.logger.info(f"[Client] sent: {query} \n received: {resp.json()}")

@@ -98,11 +98,11 @@ class Env:
 
     @self.flask_server.route("/query", methods=["GET"])
     def handle_query():
-      query_json = request.json
+      query = request.json
       try:
         broadcaster: Broadcaster = self.get_component(Broadcaster.get_type())
         assert broadcaster is not None
-        resp = broadcaster.handle_query(query_json)
+        resp = broadcaster.handle_query(query)
       except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
