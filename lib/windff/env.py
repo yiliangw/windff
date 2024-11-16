@@ -205,6 +205,38 @@ class Env:
 
     return df
 
+  def query_predicted_data_df(self, time_start: np.datetime64, time_stop: np.datetime64) -> pd.DataFrame:
+
+    query = f'from (bucket: "{self.config.influx_db.predicted_data_bucket}")\
+    |> range(start: {Utils.dt_to_sec(time_start)}, stop: {Utils.dt_to_sec(time_stop)})\
+    |> filter(fn: (r)=> r["_measurement"] == "{self.config.influx_db.predicted_turb_ts_measurement}")\
+    |> pivot(rowKey:["_time", "{self.turb_col}"], columnKey: ["_field"], valueColumn: "_value")\
+    |> keep(columns: ["_time", "{self.turb_col}"'
+
+    for col in self.config.type.raw_turb_data_type.get_target_col_names():
+      query += f', "{col}"'
+
+    query += ']) |> yield()'
+
+    try:
+      df = self.__influx_query_api.query_data_frame(query)
+    except InfluxDBError as err:
+      logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
+      raise DBQueryError(inspect.currentframe(), err)
+
+    df = df.rename(columns={'_time': self.time_col})
+    df[self.time_col] = pd.to_datetime(df[self.time_col], unit='s')
+    df[self.turb_col] = df[self.turb_col].astype(str)
+
+    df = df.drop(columns=['result', 'table'])
+    df = df.reset_index(drop=True)
+
+    for col in df.columns:
+      if col != self.time_col and col != self.turb_col:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    return df
+
   def write_preprocessed_turb_data_df(self, df: pd.DataFrame):
     self.__check_db_connection(DatabaseID.PREPROCESSED)
     df = df.set_index(self.time_col)
@@ -232,24 +264,6 @@ class Env:
     except influxdb_client.client.InfluxDBError as err:
       logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
       raise DBWriteError(inspect.currentframe(), err)
-
-  def query_predicted_data_df(self, time_start: np.datetime64, time_end: np.datetime64):
-    self.__check_db_connection(DatabaseID.PREDICTED)
-    query = f'''
-    from(bucket: "{self.config.predicted_db.bucket}")
-      |> range(start: {time_start}, stop: {time_end})
-      |> filter(fn: (r) => r["_measurement"] == "{self.config.predicted_db.turb_ts_measurement}")
-      |> yield()
-    '''
-    # Change time column to timestamp
-    try:
-      df = self.__influx_query_api.query_data_frame(query)
-    except influxdb_client.client.InfluxDBError as err:
-      logging.error(f"InfluxDB error ({inspect.currentframe()}): %s", err)
-      raise DBQueryError(inspect.currentframe(), err)
-    df["timestamp"] = df.index
-    df = df.reset_index(drop=True)
-    return df
 
   def parse_raw_turb_data(self, data_json: str) -> RawTurbData:
     return self.config.type.raw_turb_data_type.from_json(data_json)
