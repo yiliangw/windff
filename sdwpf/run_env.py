@@ -95,9 +95,6 @@ def tick(sig, frame):
     exit(0)
 
 
-tick(None, None)
-
-
 signal.signal(signal.SIGINT, tick)
 
 env.start_services(port)

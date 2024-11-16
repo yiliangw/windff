@@ -10,6 +10,7 @@ from influxdb_client.client.write_api import WriteApi, SYNCHRONOUS
 from influxdb_client import InfluxDBClient
 
 from flask import Flask, request, jsonify
+import json
 
 from .config import Config
 from .components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
@@ -78,7 +79,7 @@ class Env:
     @self.flask_server.route("/raw_turb_data", methods=["POST"])
     def handle_raw_turbine_data():
       try:
-        data_json = request.json
+        data_json = json.dumps(request.json)
         data = self.parse_raw_turb_data(data_json)
       except RawDataParsingError as e:
         logging.warning(
