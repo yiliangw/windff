@@ -93,6 +93,9 @@ class SDWPFRawTurbData(RawTurbData):
         "prtv": float(self.prtv),
         "patv": float(self.patv)
     })
+    
+  def to_dict(self):
+    return json.dumps(self.to_json())
 
   def to_influxdb_point(self, measurement: str) -> InfluxDBPoint:
     return InfluxDBPoint(measurement) \

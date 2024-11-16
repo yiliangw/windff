@@ -1,21 +1,19 @@
-from enum import Enum
+import numpy as np
+import pandas as pd
 
+import logging
+import inspect
 import influxdb_client.client
 from influxdb_client.client.exceptions import InfluxDBError
 from influxdb_client.client.query_api import QueryApi
 from influxdb_client.client.write_api import WriteApi, SYNCHRONOUS
 from influxdb_client import InfluxDBClient
 
-
-import numpy as np
-import pandas as pd
-
-import logging
-import inspect
+from flask import Flask, request, jsonify
 
 from .config import Config
 from .components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
-from .errors import DBConnectionError, DBWriteError, DBQueryError
+from .errors import DBError, DBConnectionError, DBWriteError, DBQueryError, RawDataParsingError
 from .data import RawTurbData
 from .data.database import DatabaseID
 from .utils import Utils
@@ -73,6 +71,53 @@ class Env:
     self.components[type] = type_list
 
     return comp
+
+  def start_services(self, collector_port: int, broadcaster_port: int):
+    self.collector_server = Flask(f'{__name__}/collector')
+
+    @self.collector_server.route("/raw_turb_data", methods=["POST"])
+    def handle_raw_turbine_data():
+      try:
+        data_json = request.json
+        data = self.parse_raw_turb_data(data_json)
+      except RawDataParsingError as e:
+        logging.warning(
+            f"Discarded faulty raw turbine data: {data_json}, err: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+      try:
+        collector: Collector = self.get_component(Collector.get_type())
+        assert collector is not None
+        collector.handle_raw_turb_data(data)
+      except DBError as e:
+        logging.warning(f"Ignored raw turbine data due to DB error: {str(e)}")
+        return jsonify({"error": "DB error"}), 500
+
+      return jsonify({"status": "OK"}), 200
+
+    self.collector_server.run(host='0.0.0.0', port=collector_port)
+
+    self.broadcaster_server = Flask(f'{__name__}/broadcaster')
+
+    @self.broadcaster_server.route("/query", methods=["GET"])
+    def handle_query():
+      query_json = request.json
+      try:
+        broadcaster: Broadcaster = self.get_component(Broadcaster.get_type())
+        assert broadcaster is not None
+        resp = broadcaster.handle_query(query_json)
+      except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+      return jsonify(resp), 200
+
+    self.broadcaster_server.run(host='0.0.0.0', port=broadcaster_port)
+
+  def get_component(self, type: str) -> Component:
+    comp_l = self.get_components(type)
+    if comp_l is None or len(comp_l) == 0:
+      return None
+    return comp_l[0]
 
   @property
   def time_interval(self):

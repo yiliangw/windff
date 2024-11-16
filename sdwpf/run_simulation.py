@@ -33,7 +33,10 @@ def main():
       ),
       time_start=np.datetime64('2024-11-10T17:00:00', 's'),
       time_interval=np.timedelta64(10, 'm'),
-      time_duration=np.timedelta64(1, 'h')
+      time_duration=np.timedelta64(1, 'h'),
+
+      collector_port=17000,
+      broadcaster_port=17000
   ))
 
   sim.run()

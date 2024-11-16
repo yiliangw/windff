@@ -22,6 +22,9 @@ class SDWPFSimulation:
     time_interval: np.timedelta64
     time_duration: np.timedelta64
 
+    collector_port: int
+    broadcaster_port: int
+
   def __init__(self):
 
     self.time: np.datetime64 = None
@@ -85,8 +88,8 @@ class SDWPFSimulation:
 
     while self.time <= time_stop:
       for edge in self.turbine_edges:
-        raw_data_json = edge.get_raw_data_json(interval_nb)
-        self.collector.handle_raw_turb_data_json(raw_data_json)
+        raw_data = edge.get_raw_data(interval_nb)
+        self.collector.handle_raw_turb_data(raw_data)
 
       self.controller.process(self.time)
 

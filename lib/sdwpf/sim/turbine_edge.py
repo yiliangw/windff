@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import random
 import os
+import requests
 
 import logging
 
@@ -45,16 +46,19 @@ class SDWPFTurbineEdge:
     self.time_interval = time_interval
     self.random = random.Random(self.id)
 
-  def get_raw_data_json(self, idx: int) -> str:
+  def get_raw_data(self, idx: int) -> SDWPFRawTurbData:
     if idx >= len(self.df):
       return None
     row = self.df.iloc[idx]
     time = self.time_start + idx * self.time_interval - \
         self.time_interval * self.random.random()
 
-    json_str = SDWPFRawTurbData(time, self.id, row['Wspd'], row['Wdir'], row['Etmp'], row['Itmp'],
-                                row['Ndir'], row['Pab1'], row['Pab2'], row['Pab3'], row['Prtv'], row['Patv']).to_json()
+    data = SDWPFRawTurbData(time, self.id, row['Wspd'], row['Wdir'], row['Etmp'], row['Itmp'],
+                            row['Ndir'], row['Pab1'], row['Pab2'], row['Pab3'], row['Prtv'], row['Patv'])
+    return data
 
-    self.logger.info(f"[Turbine {self.id}]: {json_str}")
+  def send_raw_data(self, idx: int, url: str):
+    data = self.get_raw_data(idx)
+    requests.post(url, json=data.to_dict())
 
-    return json_str
+    self.logger.info(f"[Turbine {self.id}] sent: {data}")
