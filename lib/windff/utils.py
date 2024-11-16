@@ -9,3 +9,7 @@ class Utils:
   @staticmethod
   def dt_to_sec(dt: np.datetime64) -> int:
     return int(dt.astype('datetime64[s]').astype(int))
+
+  @staticmethod
+  def dt_to_isoformat(dt: np.datetime64) -> str:
+    return np.datetime_as_string(dt, unit='s')

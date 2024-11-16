@@ -11,7 +11,3 @@ class Component(ABC):
   @abstractmethod
   def initialize(self, env):
     pass
-
-  @abstractmethod
-  def start(self):
-    pass

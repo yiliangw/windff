@@ -1,6 +1,8 @@
 import numpy as np
 from dataclasses import dataclass
 
+import logging
+
 from ...windff.components import Component, Controller, Collector, Preprocessor, Predictor, Broadcaster
 from ...windff.config import Config as WindffConfig, TypeConfig, InfluxDBConfig, ModelConfig
 from ...windff.env import Env
@@ -87,6 +89,11 @@ class SDWPFSimulation:
         self.collector.handle_raw_turb_data_json(raw_data_json)
 
       self.controller.process(self.time)
+
+      query = self.client.create_query(
+          self.time, self.time + self.config.time_interval * self.windff_config.model.output_win_sz)
+
+      response = self.broadcaster.handle_query(query)
 
       self.time += self.config.time_interval
       interval_nb += 1
